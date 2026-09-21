@@ -23,29 +23,35 @@ PILE_GAP = 20
 def project_card_vertical_bounds(
     natural_y: float,
     card_h: float,
+    base_y: float,
     hinge_y: float,
     angle: float,
 ) -> tuple[float, float]:
-    """Project a card while rotating around a horizontal hinge.
+    """Project one card during the packet's top/bottom turnover.
 
-    angle=0   : original position above the hinge
-    angle=pi/2: edge-on at the hinge
-    angle=pi  : physically flipped to the opposite (lower) side
-
-    The sign of cos(angle) is intentionally preserved. That makes every card
-    cross the hinge and land in the reversed vertical order, exactly like a
-    real overlapped packet being toppled over.
+    The packet still crosses the horizontal hinge, but its internal top-to-bottom
+    order is preserved. At 0 degrees the packet is above the hinge, at 90 degrees
+    it is edge-on, and at 180 degrees it has moved below the hinge with the same
+    visual card order.
     """
-    c = math.cos(angle)
-    top = hinge_y - (hinge_y - natural_y) * c
-    bottom = hinge_y - (hinge_y - (natural_y + card_h)) * c
-    return min(top, bottom), max(top, bottom)
+    scale = abs(math.cos(angle))
+    slot_offset = natural_y - base_y
+
+    if math.cos(angle) >= 0:
+        # Upper side: collapse toward the hinge as the packet approaches 90°.
+        y1 = hinge_y - (hinge_y - natural_y) * scale
+    else:
+        # Lower side: expand away from the hinge while preserving slot order.
+        y1 = hinge_y + slot_offset * scale
+
+    y2 = y1 + card_h * scale
+    return y1, y2
 
 
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.8")
+        self.title("Reverse Solitaire v0.1.9")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -69,7 +75,7 @@ class ReverseSolitaireApp(tk.Tk):
             self,
             text=(
                 "一番上のカードを2枚クリック。同じ数字なら自動で消えます。"
-                "［ひっくり返す ↓/↑］でカードの山を物理的に上下へ倒します。"
+                "［ひっくり返す ↓/↑］で山全体を上下へ倒し、各カードの表裏を切り替えます。"
             ),
             fg="white", bg="#0b5d35", font=("Yu Gothic UI", 10),
         )
@@ -143,8 +149,8 @@ class ReverseSolitaireApp(tk.Tk):
             self.flip_angle[pile_index] = angle
 
             if step == midpoint:
-                # At 90 degrees the packet is almost edge-on. Commit the rule
-                # state there, while the card faces/order transition is hidden.
+                # At 90° the packet is almost edge-on, so switching every card's
+                # face state is visually hidden and reads like a real turnover.
                 self.game.flip_pile(pile_index)
 
             self.redraw()
@@ -221,16 +227,17 @@ class ReverseSolitaireApp(tk.Tk):
             else:
                 top_idx = self.game.top_index(i)
 
-                # The same free-end card is painted last on both sides. Its
-                # spatial position crosses the hinge, so the visual order is
-                # reversed by physics rather than by a logical 'keep top' rule.
-                render_indices = range(len(pile))
+                # Draw bottom cards first so visual card 0 stays on top. The
+                # card identity order is identical before and after a turnover.
+                render_indices = range(len(pile) - 1, -1, -1)
 
                 pile_bottom = base_y
                 for j in render_indices:
                     pc = pile[j]
                     natural_y = base_y + j * OFFSET_Y
-                    y1, y2 = project_card_vertical_bounds(natural_y, CARD_H, hinge_y, angle)
+                    y1, y2 = project_card_vertical_bounds(
+                        natural_y, CARD_H, base_y, hinge_y, angle
+                    )
                     card_h = max(3.0, y2 - y1)
                     y2 = y1 + card_h
                     pile_bottom = max(pile_bottom, y2)
@@ -296,13 +303,15 @@ class ReverseSolitaireApp(tk.Tk):
             )
 
         state_text = "クリア！" if self.game.won else (
-            "ギブアップ" if self.game.given_up else "ペアを探してください"
+            "ギブアップ" if self.game.given_up else "記憶を頼りにペアを探してください"
         )
         self.status.set(
             f"残り {self.game.remaining_cards}枚 / 取り除いたペア {self.game.removed_pairs} / "
             f"手数 {self.game.moves} / {state_text}"
         )
 
+        # Pseudo double-buffering: discard the old frame only after the new one
+        # has been fully constructed, preventing an empty-canvas flash.
         self.canvas.delete(old_tag)
 
 
