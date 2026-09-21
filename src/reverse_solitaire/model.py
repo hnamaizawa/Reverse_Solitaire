@@ -24,33 +24,121 @@ class PileCard:
     face_up: bool
 
 
+@dataclass
+class GameSnapshot:
+    piles: list[list[PileCard]]
+    flipped: list[bool]
+    selected: list[int]
+    given_up: bool
+    moves: int
+    removed_pairs: int
+
+
 class GameState:
     """Core rules for Reverse Solitaire."""
 
     def __init__(self, piles: list[list[PileCard]]):
         self.piles = piles
-        # False: packet is on the upper side of its hinge.
-        # True: packet is on the lower side after a downward turnover.
-        # The list always represents the current visual top-to-bottom order.
         self.flipped = [False for _ in piles]
         self.selected: list[int] = []
         self.given_up = False
         self.moves = 0
         self.removed_pairs = 0
 
+    @staticmethod
+    def _pile_capacities(card_count: int, pile_size: int) -> list[int]:
+        return [min(pile_size, card_count - start) for start in range(0, card_count, pile_size)]
+
     @classmethod
-    def new(cls, *, seed: int | None = None, pile_size: int = 6) -> "GameState":
+    def _deal_easy(cls, rng: random.Random, pile_size: int) -> list[list[Card]]:
+        """Deal so that no pile contains the same rank more than once."""
+        deck_size = len(SUITS) * len(RANKS)
+        capacities = cls._pile_capacities(deck_size, pile_size)
+        if max(capacities, default=0) > len(RANKS):
+            raise ValueError("easy_mode requires pile_size <= number of ranks")
+
+        for _attempt in range(1000):
+            piles: list[list[Card]] = [[] for _ in capacities]
+            ranks_in_pile: list[set[str]] = [set() for _ in capacities]
+            rank_order = list(RANKS)
+            rng.shuffle(rank_order)
+            failed = False
+
+            for rank in rank_order:
+                suits = list(SUITS)
+                rng.shuffle(suits)
+                candidates = [
+                    i for i, capacity in enumerate(capacities)
+                    if len(piles[i]) < capacity and rank not in ranks_in_pile[i]
+                ]
+                if len(candidates) < len(suits):
+                    failed = True
+                    break
+
+                # Prefer piles with more free slots; random tie-breaking preserves variety.
+                rng.shuffle(candidates)
+                candidates.sort(key=lambda i: capacities[i] - len(piles[i]), reverse=True)
+                chosen = candidates[:len(suits)]
+                rng.shuffle(chosen)
+                for suit, pile_index in zip(suits, chosen):
+                    piles[pile_index].append(Card(rank, suit))
+                    ranks_in_pile[pile_index].add(rank)
+
+            if not failed and all(len(piles[i]) == capacities[i] for i in range(len(piles))):
+                for pile in piles:
+                    rng.shuffle(pile)
+                return piles
+
+        raise RuntimeError("could not create an easy-mode deal")
+
+    @classmethod
+    def new(
+        cls,
+        *,
+        seed: int | None = None,
+        pile_size: int = 6,
+        easy_mode: bool = False,
+    ) -> "GameState":
         if pile_size <= 0:
             raise ValueError("pile_size must be positive")
-        deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
         rng = random.Random(seed)
-        rng.shuffle(deck)
-        piles: list[list[PileCard]] = []
-        for start in range(0, len(deck), pile_size):
-            chunk = deck[start:start + pile_size]
-            pile = [PileCard(card=card, face_up=(i % 2 == 0)) for i, card in enumerate(chunk)]
-            piles.append(pile)
+
+        if easy_mode:
+            card_piles = cls._deal_easy(rng, pile_size)
+        else:
+            deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
+            rng.shuffle(deck)
+            card_piles = [deck[start:start + pile_size] for start in range(0, len(deck), pile_size)]
+
+        piles = [
+            [PileCard(card=card, face_up=(i % 2 == 0)) for i, card in enumerate(chunk)]
+            for chunk in card_piles
+        ]
         return cls(piles)
+
+    def snapshot(self) -> GameSnapshot:
+        return GameSnapshot(
+            piles=[
+                [PileCard(Card(pc.card.rank, pc.card.suit), pc.face_up) for pc in pile]
+                for pile in self.piles
+            ],
+            flipped=list(self.flipped),
+            selected=list(self.selected),
+            given_up=self.given_up,
+            moves=self.moves,
+            removed_pairs=self.removed_pairs,
+        )
+
+    def restore(self, snapshot: GameSnapshot) -> None:
+        self.piles = [
+            [PileCard(Card(pc.card.rank, pc.card.suit), pc.face_up) for pc in pile]
+            for pile in snapshot.piles
+        ]
+        self.flipped = list(snapshot.flipped)
+        self.selected = list(snapshot.selected)
+        self.given_up = snapshot.given_up
+        self.moves = snapshot.moves
+        self.removed_pairs = snapshot.removed_pairs
 
     @property
     def remaining_cards(self) -> int:
@@ -73,14 +161,7 @@ class GameState:
         return None if idx is None else self.piles[pile_index][idx]
 
     def flip_pile(self, pile_index: int) -> None:
-        """Physically turn the packet over.
-
-        Every turnover reverses the visual top-to-bottom order and flips every
-        individual card face. Therefore a card whose rank/suit was visible shows
-        its back after the turnover, while a card that showed its back reveals
-        its rank/suit. With the normal alternating deal, the old bottom card is
-        hidden before a downward flip, so it becomes the new visible top card.
-        """
+        """Physically turn the packet over: reverse order and toggle every face."""
         if self.finished:
             return
         pile = self.piles[pile_index]
@@ -91,7 +172,6 @@ class GameState:
         for pc in pile:
             pc.face_up = not pc.face_up
         self.flipped[pile_index] = not self.flipped[pile_index]
-
         self.selected.clear()
         self.moves += 1
 
