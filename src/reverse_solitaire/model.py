@@ -25,20 +25,7 @@ class PileCard:
 
 
 class GameState:
-    """Core rules for Reverse Solitaire.
-
-    Rule interpretation from v0.1.1:
-    - A standard 52-card deck is shuffled and dealt into piles, 8 cards per pile
-      (the final pile may contain fewer cards).
-    - Cards in each pile alternate face-up / face-down from bottom to top.
-    - Flipping a pile does not move any card. It only toggles every card's
-      face-up / face-down state, so known/unknown cards trade places while
-      staying in exactly the same positions.
-    - Only the top card of a pile can be selected for matching.
-    - Two face-up top cards with the same rank can be removed.
-    - The player wins when all cards are removed.
-    - The player can give up at any time.
-    """
+    """Core rules for Reverse Solitaire."""
 
     def __init__(self, piles: list[list[PileCard]]):
         self.piles = piles
@@ -48,7 +35,7 @@ class GameState:
         self.removed_pairs = 0
 
     @classmethod
-    def new(cls, *, seed: int | None = None, pile_size: int = 8) -> "GameState":
+    def new(cls, *, seed: int | None = None, pile_size: int = 5) -> "GameState":
         if pile_size <= 0:
             raise ValueError("pile_size must be positive")
         deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
@@ -57,7 +44,6 @@ class GameState:
         piles: list[list[PileCard]] = []
         for start in range(0, len(deck), pile_size):
             chunk = deck[start:start + pile_size]
-            # bottom card face-up, then alternate as cards rise through the pile
             pile = [PileCard(card=card, face_up=(i % 2 == 0)) for i, card in enumerate(chunk)]
             piles.append(pile)
         return cls(piles)
@@ -79,21 +65,24 @@ class GameState:
         return pile[-1] if pile else None
 
     def flip_pile(self, pile_index: int) -> None:
+        """Turn the whole pile over: reverse order and toggle every face."""
         if self.finished:
             return
         pile = self.piles[pile_index]
         if not pile:
             return
+        pile.reverse()
         for pc in pile:
             pc.face_up = not pc.face_up
         self.selected.clear()
         self.moves += 1
 
     def toggle_select(self, pile_index: int) -> bool:
+        """Select a top card. Hidden top cards are selectable by memory."""
         if self.finished:
             return False
         top = self.top_card(pile_index)
-        if top is None or not top.face_up:
+        if top is None:
             return False
         if pile_index in self.selected:
             self.selected.remove(pile_index)
@@ -110,7 +99,7 @@ class GameState:
         if a == b:
             return False
         ca, cb = self.top_card(a), self.top_card(b)
-        return bool(ca and cb and ca.face_up and cb.face_up and ca.card.rank == cb.card.rank)
+        return bool(ca and cb and ca.card.rank == cb.card.rank)
 
     def remove_selected(self) -> bool:
         if not self.can_remove_selected():
@@ -122,10 +111,13 @@ class GameState:
         self.removed_pairs += 1
         return True
 
+    def clear_selection(self) -> None:
+        self.selected.clear()
+
     def available_matches(self) -> list[tuple[int, int]]:
         tops: list[tuple[int, PileCard]] = []
         for i, pile in enumerate(self.piles):
-            if pile and pile[-1].face_up:
+            if pile:
                 tops.append((i, pile[-1]))
         matches: list[tuple[int, int]] = []
         for i, (pa, ca) in enumerate(tops):

@@ -1,14 +1,16 @@
 project: Reverse Solitaire
-version: 0.1.1
+version: 0.1.2
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
-  - Cards are dealt into piles of 8 cards, with the final pile allowed to be smaller.
+  - Cards are dealt into piles of 5 cards, with the final pile allowed to be smaller.
   - Cards in each pile alternate face-up and face-down from bottom to top.
-  - Flipping a pile never changes card positions or card order; it only toggles every card face state.
+  - Flipping a pile reverses card order and toggles every card face state.
+  - After a flip, the card that was at the bottom becomes the new top card.
   - Only the top card of a pile can be selected.
-  - A selectable top card must be face-up.
+  - A top card may be selected even while face-down; the player may rely on memory.
   - Two top cards may be removed only when their ranks match; suits do not need to match.
+  - A matching pair is removed automatically when the second card is selected.
   - The game is won only when all cards have been removed.
   - The player may give up at any time before winning.
 
