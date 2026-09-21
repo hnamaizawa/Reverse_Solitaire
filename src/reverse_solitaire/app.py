@@ -32,6 +32,8 @@ FLIP_FRAMES = 14
 FLIP_FRAME_MS = 12
 FINALE_FRAMES = 28
 FINALE_FRAME_MS = 34
+MISMATCH_VOLUME = 0.08
+VICTORY_VOLUME = 0.06
 
 
 def project_card_vertical_bounds(
@@ -63,7 +65,7 @@ def build_soft_error_wav(
     *,
     frequency: float = 420.0,
     duration: float = 0.09,
-    volume: float = 0.08,
+    volume: float = MISMATCH_VOLUME,
     sample_rate: int = 22050,
 ) -> bytes:
     """Create a short, restrained PCM tone for mismatch feedback."""
@@ -87,7 +89,7 @@ def build_soft_error_wav(
 
 def build_victory_wav(
     *,
-    volume: float = 0.13,
+    volume: float = VICTORY_VOLUME,
     sample_rate: int = 22050,
 ) -> bytes:
     """Build a short ascending victory fanfare without external sound files."""
@@ -128,7 +130,7 @@ def build_victory_wav(
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.15")
+        self.title("Reverse Solitaire v0.1.17")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -137,6 +139,7 @@ class ReverseSolitaireApp(tk.Tk):
         self.status = tk.StringVar()
         self.animating = False
         self.muted = tk.BooleanVar(value=False)
+        self._audio_epoch = 0
         self._mismatch_wav = build_soft_error_wav()
         self._victory_wav = build_victory_wav()
         self.flip_angle: dict[int, float] = {}
@@ -153,6 +156,7 @@ class ReverseSolitaireApp(tk.Tk):
             toolbar,
             text="消音",
             variable=self.muted,
+            command=self._on_mute_changed,
             bg="#123c2a",
             fg="white",
             activebackground="#123c2a",
@@ -216,11 +220,28 @@ class ReverseSolitaireApp(tk.Tk):
         else:
             messagebox.showinfo("ヒント", "現在、削除できるペアはありません。\nカードをひっくり返して探してみてください。")
 
+    def _on_mute_changed(self) -> None:
+        """Apply mute as a master switch for every current and future sound."""
+        if self.muted.get():
+            self._audio_epoch += 1
+            self._stop_all_audio()
+
+    def _stop_all_audio(self) -> None:
+        if winsound is None:
+            return
+        try:
+            winsound.PlaySound(None, 0)
+        except RuntimeError:
+            pass
+
     def _play_wav_async(self, sound: bytes) -> None:
         if self.muted.get() or winsound is None:
             return
+        epoch = self._audio_epoch
 
         def play() -> None:
+            if self.muted.get() or epoch != self._audio_epoch:
+                return
             try:
                 winsound.PlaySound(sound, winsound.SND_MEMORY)
             except RuntimeError:
