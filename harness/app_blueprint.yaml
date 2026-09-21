@@ -1,17 +1,18 @@
 project: Reverse Solitaire
-version: 0.1.4
+version: 0.1.5
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
   - Cards are dealt into piles of 5 cards, with the final pile allowed to be smaller.
   - Cards in each pile alternate face-up and face-down.
   - Flipping a pile never changes the cards' vertical screen positions or their stored order.
-  - Flipping toggles every card face state and switches which end of the pile is physically exposed/selectable.
+  - Flipping toggles card face states and switches which end of the pile is physically exposed/selectable.
   - After a flip, the card at the opposite end becomes the new top/removal target without moving its screen position.
+  - The newly exposed top/removal-target card must always be face-up immediately after a flip so its rank and suit are visible.
   - The flip animation is vertical/top-to-bottom like a domino falling over, not a left/right rotation.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
   - Only the currently exposed end card of a pile can be selected.
-  - An exposed card may be selected even while face-down; the player may rely on memory.
+  - An exposed card may be selected even while face-down after removals; the player may rely on memory.
   - Two exposed cards may be removed only when their ranks match; suits do not need to match.
   - A matching pair is removed automatically when the second card is selected.
   - The game is won only when all cards have been removed.
