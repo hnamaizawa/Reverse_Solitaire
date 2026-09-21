@@ -1,22 +1,22 @@
 project: Reverse Solitaire
-version: 0.1.7
+version: 0.1.8
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
   - Cards are dealt into piles of 6 cards, with the final pile allowed to be smaller.
   - With 52 cards the normal deal is 8 piles of 6 cards plus a final pile of 4 cards.
-  - Cards in each pile alternate face-up and face-down.
-  - Flipping a pile is a physical top-to-bottom turnover around a horizontal hinge, not an in-place mirror or squash/re-expand effect.
+  - Cards in each pile initially alternate face-up and face-down.
+  - Flipping a pile is a physical 180-degree top-to-bottom turnover around a horizontal hinge, not an in-place mirror or squash/re-expand effect.
   - A downward flip must move the whole packet to the lower side of the hinge; the next upward flip must move it back to the upper side.
-  - The card that was previously exposed/top must not be forced to remain top after a flip; the physically opposite end becomes exposed.
-  - Stored card order may remain stable internally, but screen positions must follow the physical 180-degree rotation.
-  - Flipping toggles card face states and switches which end of the pile is physically exposed/selectable.
-  - The newly exposed top/removal-target card must always be face-up immediately after a flip so its rank and suit are visible.
+  - The visible vertical order after a turnover must be the exact reverse of the visible order before it.
+  - In the four-card reference case, the free-end/bottom 9-diamond becomes the visual top, the prior third card becomes second, J-heart becomes third, and the prior first card becomes the visual bottom.
+  - Do not preserve an old logical top by switching to the opposite list end; the spatial 180-degree motion determines the visible stack order.
+  - After a turnover, all cards in that packet must show their rank and suit; cards that were backs become readable and cards already showing a face remain readable.
   - The flip direction alternates down then up according to the packet's current physical side.
-  - At approximately 90 degrees the packet becomes edge-on at the hinge; face/exposed-side changes should occur at that visually hidden midpoint.
+  - At approximately 90 degrees the packet becomes edge-on at the hinge; physical-side state changes should occur at that visually hidden midpoint.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
-  - Only the currently exposed end card of a pile can be selected.
-  - An exposed card may be selected even while face-down after removals; the player may rely on memory.
+  - Only the physically exposed free-end card of a pile can be selected for removal.
+  - Before the first turnover an exposed card may still be face-down and selectable by memory.
   - Two exposed cards may be removed only when their ranks match; suits do not need to match.
   - A matching pair is removed automatically when the second card is selected.
   - The game is won only when all cards have been removed.
