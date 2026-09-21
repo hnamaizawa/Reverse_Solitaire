@@ -1,5 +1,5 @@
 project: Reverse Solitaire
-version: 0.1.9
+version: 0.1.10
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
@@ -8,13 +8,15 @@ non_negotiable_invariants:
   - Cards in each pile initially alternate face-up and face-down.
   - Flipping a pile is a physical top-to-bottom turnover around a horizontal hinge, not an in-place mirror or squash/re-expand effect.
   - A downward flip must move the whole packet to the lower side of the hinge; the next upward flip must move it back to the upper side.
-  - Flipping must preserve the cards' visual top-to-bottom identity order; card 1 remains in slot 1, card 2 remains in slot 2, and so on.
-  - Every flip toggles every card face state: a visible rank/suit becomes a card back, and a card back becomes a visible rank/suit.
-  - In the four-card reference case A-club face / back / 9-heart face / back becomes A-club back / visible card / 9-heart back / visible card, in the same four vertical slots.
-  - The visually first card remains the removal-target card before and after a turnover; it may be face-down and selectable by memory.
+  - Every flip reverses the cards' visual top-to-bottom order.
+  - In the four-card reference case A-club / hidden / 9-heart / hidden becomes hidden-card-2 / 9-heart / hidden-card-1 / A-club after the downward flip.
+  - While a packet is on the lower side, every card must show its rank and suit so all cards are identifiable.
+  - When the packet is flipped back upward, its order reverses back and the alternating face-up/face-down pattern is restored for the remaining packet.
+  - The visually first card is the removal-target card.
   - The flip direction alternates down then up according to the packet's current physical side.
-  - At approximately 90 degrees the packet becomes edge-on at the hinge; face-state changes should occur at that visually hidden midpoint.
+  - At approximately 90 degrees the packet becomes edge-on at the hinge; order/face-state changes should occur at that visually hidden midpoint.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
+  - An upper-side removal-target card may be face-down and selectable by memory.
   - Two removal-target cards may be removed only when their ranks match; suits do not need to match.
   - A matching pair is removed automatically when the second card is selected.
   - The game is won only when all cards have been removed.
