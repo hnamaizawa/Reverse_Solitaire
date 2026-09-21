@@ -51,45 +51,73 @@ class GameState:
 
     @classmethod
     def _deal_easy(cls, rng: random.Random, pile_size: int) -> list[list[Card]]:
-        """Deal so that no pile contains the same rank more than once."""
-        deck_size = len(SUITS) * len(RANKS)
-        capacities = cls._pile_capacities(deck_size, pile_size)
-        if max(capacities, default=0) > len(RANKS):
-            raise ValueError("easy_mode requires pile_size <= number of ranks")
+        """Deal with at most one same-rank pair per pile, separated by two cards.
 
-        for _attempt in range(1000):
-            piles: list[list[Card]] = [[] for _ in capacities]
-            ranks_in_pile: list[set[str]] = [set() for _ in capacities]
-            rank_order = list(RANKS)
-            rng.shuffle(rank_order)
+        A duplicate rank may occur only once in a pile. When it does, the two
+        cards must be at least three positions apart, leaving at least two other
+        cards between them. Triples and two different duplicate-rank pairs in
+        the same pile are not allowed.
+        """
+        deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
+        capacities = cls._pile_capacities(len(deck), pile_size)
+
+        if pile_size <= 0:
+            raise ValueError("pile_size must be positive")
+
+        # Greedy randomized construction is fast for the normal 6-card piles;
+        # restart the whole deal if the remaining deck ever makes a pile impossible.
+        for _attempt in range(5000):
+            remaining = list(deck)
+            rng.shuffle(remaining)
+            piles: list[list[Card]] = []
             failed = False
 
-            for rank in rank_order:
-                suits = list(SUITS)
-                rng.shuffle(suits)
-                candidates = [
-                    i for i, capacity in enumerate(capacities)
-                    if len(piles[i]) < capacity and rank not in ranks_in_pile[i]
-                ]
-                if len(candidates) < len(suits):
-                    failed = True
+            for capacity in capacities:
+                pile: list[Card] = []
+                rank_positions: dict[str, list[int]] = {}
+                duplicated_rank: str | None = None
+
+                for position in range(capacity):
+                    allowed_indices: list[int] = []
+                    for index, card in enumerate(remaining):
+                        positions = rank_positions.get(card.rank, [])
+                        if not positions:
+                            allowed_indices.append(index)
+                            continue
+
+                        # A rank may appear at most twice, and only one rank in
+                        # the pile may be duplicated at all.
+                        if len(positions) >= 2:
+                            continue
+                        if duplicated_rank is not None and duplicated_rank != card.rank:
+                            continue
+
+                        # Keep two complete cards between the equal-rank cards.
+                        if position - positions[0] < 3:
+                            continue
+
+                        allowed_indices.append(index)
+
+                    if not allowed_indices:
+                        failed = True
+                        break
+
+                    chosen_index = rng.choice(allowed_indices)
+                    card = remaining.pop(chosen_index)
+                    positions = rank_positions.setdefault(card.rank, [])
+                    if positions:
+                        duplicated_rank = card.rank
+                    positions.append(position)
+                    pile.append(card)
+
+                if failed:
                     break
+                piles.append(pile)
 
-                # Prefer piles with more free slots; random tie-breaking preserves variety.
-                rng.shuffle(candidates)
-                candidates.sort(key=lambda i: capacities[i] - len(piles[i]), reverse=True)
-                chosen = candidates[:len(suits)]
-                rng.shuffle(chosen)
-                for suit, pile_index in zip(suits, chosen):
-                    piles[pile_index].append(Card(rank, suit))
-                    ranks_in_pile[pile_index].add(rank)
-
-            if not failed and all(len(piles[i]) == capacities[i] for i in range(len(piles))):
-                for pile in piles:
-                    rng.shuffle(pile)
+            if not failed and not remaining and [len(p) for p in piles] == capacities:
                 return piles
 
-        raise RuntimeError("could not create an easy-mode deal")
+        raise RuntimeError("could not create an easy-mode deal with pair-spacing constraints")
 
     @classmethod
     def new(
