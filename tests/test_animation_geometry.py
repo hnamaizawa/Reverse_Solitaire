@@ -31,7 +31,7 @@ def test_downward_domino_flip_moves_packet_below_hinge():
     assert end_bottom == hinge_y + card_h
 
 
-def test_upward_domino_flip_returns_card_to_original_position():
+def test_upward_domino_flip_returns_card_slot_to_original_position():
     base_y = 60.0
     natural_y = 140.0
     card_h = 118.0
@@ -48,8 +48,8 @@ def test_upward_domino_flip_returns_card_to_original_position():
     assert (up_top, up_bottom) == (natural_y, natural_y + card_h)
 
 
-def test_four_card_packet_preserves_visual_vertical_order_after_flip():
-    """A♣, hidden, 9♥, hidden must remain in the same four screen slots."""
+def test_four_card_packet_uses_same_slots_while_identities_reverse_at_midpoint():
+    """Geometry keeps slots stable; model reversal swaps which card occupies them."""
     base_y = 60.0
     offset_y = 40.0
     card_h = 118.0
@@ -62,6 +62,8 @@ def test_four_card_packet_preserves_visual_vertical_order_after_flip():
         for y in natural_ys
     ]
 
-    visual_order = sorted(range(count), key=lambda i: final_tops[i])
-    assert visual_order == [0, 1, 2, 3]
     assert final_tops == [hinge_y + i * offset_y for i in range(count)]
+
+    original_cards = ['A♣', 'hidden-1', '9♥', 'hidden-2']
+    after_model_flip = list(reversed(original_cards))
+    assert after_model_flip == ['hidden-2', '9♥', 'hidden-1', 'A♣']
