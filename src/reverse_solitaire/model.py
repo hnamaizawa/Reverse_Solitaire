@@ -51,21 +51,59 @@ class GameState:
 
     @classmethod
     def _deal_easy(cls, rng: random.Random, pile_size: int) -> list[list[Card]]:
-        """Deal with at most one same-rank pair per pile, separated by two cards.
+        """Deal so that a pile never contains two cards of the same rank."""
+        deck_size = len(SUITS) * len(RANKS)
+        capacities = cls._pile_capacities(deck_size, pile_size)
+        if max(capacities, default=0) > len(RANKS):
+            raise ValueError("easy_mode requires pile_size <= number of ranks")
 
-        A duplicate rank may occur only once in a pile. When it does, the two
-        cards must be at least three positions apart, leaving at least two other
-        cards between them. Triples and two different duplicate-rank pairs in
-        the same pile are not allowed.
+        for _attempt in range(1000):
+            piles: list[list[Card]] = [[] for _ in capacities]
+            ranks_in_pile: list[set[str]] = [set() for _ in capacities]
+            rank_order = list(RANKS)
+            rng.shuffle(rank_order)
+            failed = False
+
+            for rank in rank_order:
+                suits = list(SUITS)
+                rng.shuffle(suits)
+                candidates = [
+                    i for i, capacity in enumerate(capacities)
+                    if len(piles[i]) < capacity and rank not in ranks_in_pile[i]
+                ]
+                if len(candidates) < len(suits):
+                    failed = True
+                    break
+
+                rng.shuffle(candidates)
+                candidates.sort(key=lambda i: capacities[i] - len(piles[i]), reverse=True)
+                chosen = candidates[:len(suits)]
+                rng.shuffle(chosen)
+                for suit, pile_index in zip(suits, chosen):
+                    piles[pile_index].append(Card(rank, suit))
+                    ranks_in_pile[pile_index].add(rank)
+
+            if not failed and all(len(piles[i]) == capacities[i] for i in range(len(piles))):
+                for pile in piles:
+                    rng.shuffle(pile)
+                return piles
+
+        raise RuntimeError("could not create an easy-mode deal")
+
+    @classmethod
+    def _deal_standard(cls, rng: random.Random, pile_size: int) -> list[list[Card]]:
+        """Deal standard mode with at most one well-separated pair per pile.
+
+        Each pile may contain at most one duplicated rank. If a duplicated rank
+        exists, the equal-rank cards must have at least two other cards between
+        them (position difference of at least three). Triples and two different
+        pairs in the same pile are not allowed.
         """
         deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
         capacities = cls._pile_capacities(len(deck), pile_size)
+        if max(capacities, default=0) > len(RANKS) + 1:
+            raise ValueError("standard constrained deal requires pile_size <= number of ranks + 1")
 
-        if pile_size <= 0:
-            raise ValueError("pile_size must be positive")
-
-        # Greedy randomized construction is fast for the normal 6-card piles;
-        # restart the whole deal if the remaining deck ever makes a pile impossible.
         for _attempt in range(5000):
             remaining = list(deck)
             rng.shuffle(remaining)
@@ -85,14 +123,10 @@ class GameState:
                             allowed_indices.append(index)
                             continue
 
-                        # A rank may appear at most twice, and only one rank in
-                        # the pile may be duplicated at all.
                         if len(positions) >= 2:
                             continue
                         if duplicated_rank is not None and duplicated_rank != card.rank:
                             continue
-
-                        # Keep two complete cards between the equal-rank cards.
                         if position - positions[0] < 3:
                             continue
 
@@ -117,7 +151,7 @@ class GameState:
             if not failed and not remaining and [len(p) for p in piles] == capacities:
                 return piles
 
-        raise RuntimeError("could not create an easy-mode deal with pair-spacing constraints")
+        raise RuntimeError("could not create a standard deal with pair-spacing constraints")
 
     @classmethod
     def new(
@@ -134,9 +168,7 @@ class GameState:
         if easy_mode:
             card_piles = cls._deal_easy(rng, pile_size)
         else:
-            deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
-            rng.shuffle(deck)
-            card_piles = [deck[start:start + pile_size] for start in range(0, len(deck), pile_size)]
+            card_piles = cls._deal_standard(rng, pile_size)
 
         piles = [
             [PileCard(card=card, face_up=(i % 2 == 0)) for i, card in enumerate(chunk)]
