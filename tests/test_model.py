@@ -37,6 +37,18 @@ def test_flip_switches_exposed_end_without_reordering_stored_cards():
     assert game.top_card(0).card.rank == 'A'
 
 
+def test_previous_top_is_not_forced_to_stay_top_after_flip():
+    game = build_state([[('A', '♠', True), ('4', '♥', False), ('K', '♦', True)]])
+    previous_top = game.top_card(0)
+    assert previous_top is not None
+    assert previous_top.card.rank == 'K'
+
+    game.flip_pile(0)
+
+    assert game.top_card(0) is not previous_top
+    assert game.top_card(0).card.rank == 'A'
+
+
 def test_newly_exposed_card_is_always_face_up_after_flip():
     game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
     game.flip_pile(0)
