@@ -29,6 +29,10 @@ class GameState:
 
     def __init__(self, piles: list[list[PileCard]]):
         self.piles = piles
+        # False: the visually lower end (list[-1]) is exposed/selectable.
+        # True: the visually upper end (list[0]) is exposed/selectable.
+        # Flipping a pile never reorders cards; it only changes which end is on top.
+        self.exposed_from_start = [False for _ in piles]
         self.selected: list[int] = []
         self.given_up = False
         self.moves = 0
@@ -60,25 +64,36 @@ class GameState:
     def finished(self) -> bool:
         return self.won or self.given_up
 
-    def top_card(self, pile_index: int) -> PileCard | None:
+    def top_index(self, pile_index: int) -> int | None:
         pile = self.piles[pile_index]
-        return pile[-1] if pile else None
+        if not pile:
+            return None
+        return 0 if self.exposed_from_start[pile_index] else len(pile) - 1
+
+    def top_card(self, pile_index: int) -> PileCard | None:
+        idx = self.top_index(pile_index)
+        return None if idx is None else self.piles[pile_index][idx]
 
     def flip_pile(self, pile_index: int) -> None:
-        """Turn the whole pile over: reverse order and toggle every face."""
+        """Turn a pile over without moving cards in screen order.
+
+        Every card changes face state, and the exposed/selectable end switches.
+        This models a vertical domino-like turnover: positions stay fixed, but the
+        opposite end of the physical stack becomes the new top.
+        """
         if self.finished:
             return
         pile = self.piles[pile_index]
         if not pile:
             return
-        pile.reverse()
         for pc in pile:
             pc.face_up = not pc.face_up
+        self.exposed_from_start[pile_index] = not self.exposed_from_start[pile_index]
         self.selected.clear()
         self.moves += 1
 
     def toggle_select(self, pile_index: int) -> bool:
-        """Select a top card. Hidden top cards are selectable by memory."""
+        """Select the exposed top card. Hidden cards remain selectable by memory."""
         if self.finished:
             return False
         top = self.top_card(pile_index)
@@ -104,8 +119,10 @@ class GameState:
     def remove_selected(self) -> bool:
         if not self.can_remove_selected():
             return False
-        for pile_index in sorted(self.selected, reverse=True):
-            self.piles[pile_index].pop()
+        for pile_index in self.selected:
+            idx = self.top_index(pile_index)
+            if idx is not None:
+                self.piles[pile_index].pop(idx)
         self.selected.clear()
         self.moves += 1
         self.removed_pairs += 1
@@ -118,7 +135,9 @@ class GameState:
         tops: list[tuple[int, PileCard]] = []
         for i, pile in enumerate(self.piles):
             if pile:
-                tops.append((i, pile[-1]))
+                top = self.top_card(i)
+                if top is not None:
+                    tops.append((i, top))
         matches: list[tuple[int, int]] = []
         for i, (pa, ca) in enumerate(tops):
             for pb, cb in tops[i + 1:]:
@@ -133,7 +152,7 @@ class GameState:
 
 
 def build_state(piles: Iterable[Iterable[tuple[str, str, bool]]]) -> GameState:
-    """Small test helper: iterable of (rank, suit, face_up), bottom -> top."""
+    """Small test helper: iterable of (rank, suit, face_up), visual top -> bottom order."""
     return GameState([
         [PileCard(Card(rank, suit), face_up) for rank, suit, face_up in pile]
         for pile in piles
