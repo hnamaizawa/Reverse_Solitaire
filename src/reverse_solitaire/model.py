@@ -77,9 +77,9 @@ class GameState:
     def flip_pile(self, pile_index: int) -> None:
         """Turn a pile over without moving cards in screen order.
 
-        Every card changes face state, and the exposed/selectable end switches.
-        This models a vertical domino-like turnover: positions stay fixed, but the
-        opposite end of the physical stack becomes the new top.
+        Every card changes face state, the exposed/selectable end switches,
+        and the newly exposed card is always made face-up so its rank and suit
+        are visible immediately after the flip.
         """
         if self.finished:
             return
@@ -89,6 +89,9 @@ class GameState:
         for pc in pile:
             pc.face_up = not pc.face_up
         self.exposed_from_start[pile_index] = not self.exposed_from_start[pile_index]
+        exposed = self.top_card(pile_index)
+        if exposed is not None:
+            exposed.face_up = True
         self.selected.clear()
         self.moves += 1
 
