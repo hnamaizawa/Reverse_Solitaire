@@ -24,7 +24,10 @@ non_negotiable_invariants:
   - Mismatch feedback must use a restrained short sound, provide a user-visible mute toggle, and remain less prominent than normal interaction sounds.
   - Clearing all cards must trigger a visible finale before the final result dialog.
   - The finale must include a short celebratory fanfare generated without requiring an external audio asset.
+  - Finale audio should remain celebratory but modest in volume so it does not overwhelm the visual finish.
   - The user-visible mute toggle must suppress both mismatch audio and finale audio.
+  - The hint control may report only whether at least one currently removable top-card rank pair exists; it must not reveal which piles form the pair.
+  - Hint detection must consider the current visual top card of every non-empty pile, including a face-down top card that is selectable by memory.
   - The flip direction alternates down then up according to the packet's current physical side.
   - At approximately 90 degrees the packet becomes edge-on at the hinge; order/face-state changes should occur at that visually hidden midpoint.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
