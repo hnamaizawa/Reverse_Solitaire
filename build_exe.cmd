@@ -38,7 +38,7 @@ if exist dist\ReverseSolitaire.exe del /q dist\ReverseSolitaire.exe
     --distpath dist ^
     --workpath build\pyinstaller ^
     --specpath build ^
-    src\reverse_solitaire\app.py
+    src\reverse_solitaire\app_v018.py
 
 if errorlevel 1 (
     echo.
