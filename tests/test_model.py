@@ -36,11 +36,6 @@ def test_downward_flip_reverses_every_card_face_state():
 
     game.flip_pile(0)
 
-    # Reverse order + face toggle:
-    # old 7♦ back -> new top 7♦ face
-    # old 9♥ face -> back
-    # old 4♠ back -> face
-    # old A♣ face -> back
     assert [pc.face_up for pc in game.piles[0]] == [True, False, True, False]
 
 
@@ -122,6 +117,24 @@ def test_clear_selection_after_mismatch():
     game.toggle_select(1)
     game.clear_selection()
     assert game.selected == []
+
+
+def test_available_matches_reports_removable_top_pair_without_revealing_more_cards():
+    game = build_state([
+        [('9', '♠', True), ('A', '♠', False)],
+        [('K', '♥', True), ('9', '♥', False)],
+        [('9', '♦', False), ('Q', '♦', True)],
+    ])
+    assert game.available_matches() == [(0, 2)]
+
+
+def test_available_matches_is_empty_when_no_top_rank_pair_exists():
+    game = build_state([
+        [('8', '♠', True)],
+        [('9', '♥', True)],
+        [('10', '♦', False)],
+    ])
+    assert game.available_matches() == []
 
 
 def test_win_when_all_cards_removed():
