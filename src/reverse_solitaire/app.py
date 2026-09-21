@@ -26,6 +26,7 @@ OFFSET_Y = 40
 MARGIN_X = 16
 MARGIN_Y = 60
 PILE_GAP = 20
+FLIP_BUTTON_H = 30
 
 
 def project_card_vertical_bounds(
@@ -48,28 +49,29 @@ def project_card_vertical_bounds(
     return y1, y2
 
 
-def fixed_flip_button_y(canvas_height: float) -> float:
-    """Return a stable control-row Y independent of packet flip direction.
+def centered_flip_button_y(hinge_y: float, button_height: float = FLIP_BUTTON_H) -> float:
+    """Place the flip control at the midpoint crossed by the packet.
 
-    The row only follows a window resize. Repeated up/down turnovers never move
-    the button, so the pointer can stay in one place while flipping a pile.
+    The packet is above the hinge before a downward turnover and below it after
+    the turnover. Centering the control on the hinge puts it halfway between the
+    two resting positions and keeps it at exactly the same place for up/down
+    repeats of the same pile.
     """
-    return max(12.0, min(720.0, canvas_height - 64.0))
+    return hinge_y - button_height / 2.0
 
 
 def build_soft_error_wav(
     *,
     frequency: float = 420.0,
     duration: float = 0.09,
-    volume: float = 0.055,
+    volume: float = 0.08,
     sample_rate: int = 22050,
 ) -> bytes:
-    """Create a deliberately quiet, short PCM tone for mismatch feedback."""
+    """Create a short, restrained PCM tone for mismatch feedback."""
     frame_count = max(1, int(sample_rate * duration))
     pcm = bytearray()
     for i in range(frame_count):
         t = i / sample_rate
-        # Fast attack / gentle fade keeps the cue audible without being sharp.
         envelope = min(1.0, i / max(1, int(sample_rate * 0.008)))
         envelope *= max(0.0, 1.0 - i / frame_count)
         sample = int(32767 * volume * envelope * math.sin(2.0 * math.pi * frequency * t))
@@ -87,7 +89,7 @@ def build_soft_error_wav(
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.12")
+        self.title("Reverse Solitaire v0.1.13")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -128,7 +130,7 @@ class ReverseSolitaireApp(tk.Tk):
             self,
             text=(
                 "一番上のカードを2枚クリック。同じ数字なら自動で消えます。"
-                "［ひっくり返す ↓/↑］は固定位置なので、連続して押せます。"
+                "［ひっくり返す ↓/↑］は反転前後の中央に固定されています。"
             ),
             fg="white",
             bg="#0b5d35",
@@ -162,7 +164,6 @@ class ReverseSolitaireApp(tk.Tk):
         if self.muted.get() or winsound is None:
             return
         try:
-            # Memory playback preserves the intentionally small PCM amplitude.
             winsound.PlaySound(self._mismatch_wav, winsound.SND_MEMORY)
         except RuntimeError:
             pass
@@ -429,8 +430,6 @@ class ReverseSolitaireApp(tk.Tk):
         self.hit_regions.clear()
 
         width = max(self.canvas.winfo_width(), 1050)
-        canvas_height = max(self.canvas.winfo_height(), 640)
-        fixed_button_y = fixed_flip_button_y(canvas_height)
         pile_count = len(self.game.piles)
         total_w = pile_count * CARD_W + max(0, pile_count - 1) * PILE_GAP
         start_x = max(MARGIN_X, (width - total_w) / 2)
@@ -488,14 +487,16 @@ class ReverseSolitaireApp(tk.Tk):
                     if is_top and not self.animating:
                         self.hit_regions.append(("top", i, (x1, yy1, x2, yy2)))
 
-            # Fixed control row: flipping the packet never changes this Y.
-            y_button = fixed_button_y
+            # The control is centered on the turnover hinge: the packet crosses
+            # this exact row when it flips, so repeated up/down clicks require
+            # no pointer travel toward either resting packet position.
+            y_button = centered_flip_button_y(hinge_y)
             direction = "↑" if self.game.flipped[i] else "↓"
             self._rounded_rectangle(
                 base_x,
                 y_button,
                 base_x + CARD_W,
-                y_button + 30,
+                y_button + FLIP_BUTTON_H,
                 6,
                 fill="#f7f7f4",
                 outline="#1f1f1f",
@@ -504,17 +505,21 @@ class ReverseSolitaireApp(tk.Tk):
             )
             self.canvas.create_text(
                 base_x + CARD_W / 2,
-                y_button + 15,
+                y_button + FLIP_BUTTON_H / 2,
                 text=f"ひっくり返す {direction}",
                 font=("Yu Gothic UI", 9, "bold"),
                 fill="#202020",
                 tags=(new_tag,),
             )
             if not self.animating:
-                self.hit_regions.append(("flip", i, (base_x, y_button, base_x + CARD_W, y_button + 30)))
+                self.hit_regions.append((
+                    "flip",
+                    i,
+                    (base_x, y_button, base_x + CARD_W, y_button + FLIP_BUTTON_H),
+                ))
             self.canvas.create_text(
                 base_x + CARD_W / 2,
-                y_button + 47,
+                y_button + FLIP_BUTTON_H + 17,
                 text=f"組 {i + 1}",
                 fill="white",
                 font=("Yu Gothic UI", 9),
