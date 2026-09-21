@@ -1,6 +1,6 @@
 [project]
 name = "reverse-solitaire"
-version = "0.1.2"
+version = "0.1.3"
 description = "Memory-based reverse solitaire card game prototype"
 requires-python = ">=3.10"
 
