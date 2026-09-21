@@ -7,11 +7,11 @@ sys.path.insert(0, str(ROOT / "src"))
 from reverse_solitaire.model import GameState, build_state
 
 
-def test_new_game_contains_52_cards_in_five_card_piles():
+def test_new_game_contains_52_cards_in_six_card_piles():
     game = GameState.new(seed=1)
     assert game.remaining_cards == 52
-    assert len(game.piles) == 11
-    assert [len(p) for p in game.piles] == [5] * 10 + [2]
+    assert len(game.piles) == 9
+    assert [len(p) for p in game.piles] == [6] * 8 + [4]
 
 
 def test_cards_alternate_face_direction_in_each_pile():
@@ -21,7 +21,7 @@ def test_cards_alternate_face_direction_in_each_pile():
             assert pc.face_up == (i % 2 == 0)
 
 
-def test_flip_keeps_visual_order_and_flips_non_exposed_visibility():
+def test_flip_keeps_stored_order_and_flips_non_exposed_visibility():
     game = build_state([[('A', '♠', True), ('2', '♠', False), ('3', '♠', True)]])
     before = [pc.card.rank for pc in game.piles[0]]
     game.flip_pile(0)
@@ -29,7 +29,7 @@ def test_flip_keeps_visual_order_and_flips_non_exposed_visibility():
     assert [pc.face_up for pc in game.piles[0]] == [True, True, False]
 
 
-def test_flip_switches_exposed_end_without_reordering_cards():
+def test_flip_switches_exposed_end_without_reordering_stored_cards():
     game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
     assert game.top_card(0).card.rank == 'K'
     game.flip_pile(0)
@@ -47,7 +47,7 @@ def test_newly_exposed_card_is_always_face_up_after_flip():
     assert game.top_card(0).face_up is True
 
 
-def test_flip_twice_restores_exposed_end_without_reordering_cards():
+def test_flip_twice_restores_exposed_end_without_reordering_stored_cards():
     game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
     before_order = [(pc.card.rank, pc.card.suit) for pc in game.piles[0]]
     before_top = game.top_card(0).card.rank
