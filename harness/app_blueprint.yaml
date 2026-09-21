@@ -1,5 +1,5 @@
 project: Reverse Solitaire
-version: 0.1.14
+version: 0.1.15
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
@@ -20,7 +20,11 @@ non_negotiable_invariants:
   - The flip control for each pile must stay at the same position for upward and downward turnovers of that pile.
   - The flip control should be centered on the turnover hinge, midway between the pile's upper-side and lower-side resting positions, so the packet crosses the control row during the animation.
   - The flip control height must remain compact enough to minimize overlap with card markings while remaining clickable.
+  - The turnover animation should feel quick and rhythmic; its nominal duration should stay under 220 ms while preserving the midpoint order/face transition.
   - Mismatch feedback must use a restrained short sound, provide a user-visible mute toggle, and remain less prominent than normal interaction sounds.
+  - Clearing all cards must trigger a visible finale before the final result dialog.
+  - The finale must include a short celebratory fanfare generated without requiring an external audio asset.
+  - The user-visible mute toggle must suppress both mismatch audio and finale audio.
   - The flip direction alternates down then up according to the packet's current physical side.
   - At approximately 90 degrees the packet becomes edge-on at the hinge; order/face-state changes should occur at that visually hidden midpoint.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
