@@ -48,7 +48,7 @@ def project_card_vertical_bounds(
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.10")
+        self.title("Reverse Solitaire v0.1.11")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -76,7 +76,7 @@ class ReverseSolitaireApp(tk.Tk):
             self,
             text=(
                 "一番上のカードを2枚クリック。同じ数字なら自動で消えます。"
-                "［ひっくり返す ↓/↑］で上下順を反転。下側では全カードの数字・マークが見えます。"
+                "［ひっくり返す ↓/↑］で上下順と各カードの表裏を反転します。"
             ),
             fg="white",
             bg="#0b5d35",
@@ -153,7 +153,7 @@ class ReverseSolitaireApp(tk.Tk):
 
             if step == midpoint:
                 # Edge-on is the hidden transition point: reverse the packet
-                # order and switch its upper/lower-side face policy here.
+                # order and switch every card's face at the same moment.
                 self.game.flip_pile(pile_index)
 
             self.redraw()
@@ -268,13 +268,26 @@ class ReverseSolitaireApp(tk.Tk):
                         )
                         if card_h > 30 and card_scale > 0.35:
                             suit_red = pc.card.suit in ("♥", "♦")
+                            text_color = "#b00020" if suit_red else "#111111"
                             self.canvas.create_text(
                                 x1 + 7,
                                 yy1 + 7,
                                 text=pc.card.label,
                                 anchor="nw",
                                 font=("Arial", 14, "bold"),
-                                fill="#b00020" if suit_red else "#111111",
+                                fill=text_color,
+                                tags=(new_tag,),
+                            )
+                            # Real playing cards repeat the rank/suit at the
+                            # opposite end. In an overlapped fan this lower
+                            # marking remains visible for the 2nd card onward.
+                            self.canvas.create_text(
+                                x2 - 7,
+                                yy2 - 7,
+                                text=pc.card.label,
+                                anchor="se",
+                                font=("Arial", 14, "bold"),
+                                fill=text_color,
                                 tags=(new_tag,),
                             )
                     else:
