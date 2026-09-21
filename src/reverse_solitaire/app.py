@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import io
 import math
+from pathlib import Path
+import struct
+import sys
 import tkinter as tk
 from tkinter import messagebox
-from pathlib import Path
-import sys
+import wave
+
+try:
+    import winsound
+except ImportError:  # pragma: no cover - non-Windows fallback
+    winsound = None
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -27,12 +35,7 @@ def project_card_vertical_bounds(
     hinge_y: float,
     angle: float,
 ) -> tuple[float, float]:
-    """Project one visual slot while the packet rotates around a horizontal hinge.
-
-    The slot geometry stays stable. At the edge-on midpoint the model reverses
-    which card identity occupies each slot, so the packet lands below the hinge
-    in reversed top-to-bottom order.
-    """
+    """Project one visual slot while the packet rotates around a horizontal hinge."""
     scale = abs(math.cos(angle))
     slot_offset = natural_y - base_y
 
@@ -45,10 +48,46 @@ def project_card_vertical_bounds(
     return y1, y2
 
 
+def fixed_flip_button_y(canvas_height: float) -> float:
+    """Return a stable control-row Y independent of packet flip direction.
+
+    The row only follows a window resize. Repeated up/down turnovers never move
+    the button, so the pointer can stay in one place while flipping a pile.
+    """
+    return max(12.0, min(720.0, canvas_height - 64.0))
+
+
+def build_soft_error_wav(
+    *,
+    frequency: float = 420.0,
+    duration: float = 0.09,
+    volume: float = 0.055,
+    sample_rate: int = 22050,
+) -> bytes:
+    """Create a deliberately quiet, short PCM tone for mismatch feedback."""
+    frame_count = max(1, int(sample_rate * duration))
+    pcm = bytearray()
+    for i in range(frame_count):
+        t = i / sample_rate
+        # Fast attack / gentle fade keeps the cue audible without being sharp.
+        envelope = min(1.0, i / max(1, int(sample_rate * 0.008)))
+        envelope *= max(0.0, 1.0 - i / frame_count)
+        sample = int(32767 * volume * envelope * math.sin(2.0 * math.pi * frequency * t))
+        pcm.extend(struct.pack("<h", sample))
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(bytes(pcm))
+    return buffer.getvalue()
+
+
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.11")
+        self.title("Reverse Solitaire v0.1.12")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -56,6 +95,8 @@ class ReverseSolitaireApp(tk.Tk):
         self.game = GameState.new()
         self.status = tk.StringVar()
         self.animating = False
+        self.muted = tk.BooleanVar(value=False)
+        self._mismatch_wav = build_soft_error_wav()
         self.flip_angle: dict[int, float] = {}
         self.remove_scale: dict[int, float] = {}
         self.frame_slot = 0
@@ -64,6 +105,17 @@ class ReverseSolitaireApp(tk.Tk):
         toolbar.pack(fill="x")
         tk.Button(toolbar, text="新しいゲーム", command=self.new_game).pack(side="left", padx=8, pady=8)
         tk.Button(toolbar, text="ギブアップ", command=self.give_up).pack(side="left", padx=4, pady=8)
+        tk.Checkbutton(
+            toolbar,
+            text="消音",
+            variable=self.muted,
+            bg="#123c2a",
+            fg="white",
+            activebackground="#123c2a",
+            activeforeground="white",
+            selectcolor="#123c2a",
+            font=("Yu Gothic UI", 10, "bold"),
+        ).pack(side="left", padx=(14, 4), pady=8)
         tk.Label(
             toolbar,
             textvariable=self.status,
@@ -76,7 +128,7 @@ class ReverseSolitaireApp(tk.Tk):
             self,
             text=(
                 "一番上のカードを2枚クリック。同じ数字なら自動で消えます。"
-                "［ひっくり返す ↓/↑］で上下順と各カードの表裏を反転します。"
+                "［ひっくり返す ↓/↑］は固定位置なので、連続して押せます。"
             ),
             fg="white",
             bg="#0b5d35",
@@ -106,6 +158,15 @@ class ReverseSolitaireApp(tk.Tk):
             self.game.give_up()
             self.redraw()
 
+    def _play_mismatch_sound(self) -> None:
+        if self.muted.get() or winsound is None:
+            return
+        try:
+            # Memory playback preserves the intentionally small PCM amplitude.
+            winsound.PlaySound(self._mismatch_wav, winsound.SND_MEMORY)
+        except RuntimeError:
+            pass
+
     def on_canvas_click(self, event):
         if self.game.finished or self.animating:
             return
@@ -126,7 +187,7 @@ class ReverseSolitaireApp(tk.Tk):
             if self.game.can_remove_selected():
                 self.animate_remove(selected)
             else:
-                self.bell()
+                self._play_mismatch_sound()
                 self.after(220, self._clear_mismatch)
 
     def _clear_mismatch(self):
@@ -152,8 +213,6 @@ class ReverseSolitaireApp(tk.Tk):
             self.flip_angle[pile_index] = angle
 
             if step == midpoint:
-                # Edge-on is the hidden transition point: reverse the packet
-                # order and switch every card's face at the same moment.
                 self.game.flip_pile(pile_index)
 
             self.redraw()
@@ -200,12 +259,178 @@ class ReverseSolitaireApp(tk.Tk):
         self.frame_slot = 1 - self.frame_slot
         return new_tag, old_tag
 
+    def _rounded_rectangle(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        radius: float,
+        *,
+        fill: str,
+        outline: str,
+        width: int,
+        tags: tuple[str, ...],
+    ) -> None:
+        if y2 - y1 < 14 or x2 - x1 < 14:
+            self.canvas.create_rectangle(
+                x1, y1, x2, y2, fill=fill, outline=outline, width=width, tags=tags
+            )
+            return
+        r = min(radius, (x2 - x1) / 2, (y2 - y1) / 2)
+        points = [
+            x1 + r, y1,
+            x2 - r, y1,
+            x2, y1,
+            x2, y1 + r,
+            x2, y2 - r,
+            x2, y2,
+            x2 - r, y2,
+            x1 + r, y2,
+            x1, y2,
+            x1, y2 - r,
+            x1, y1 + r,
+            x1, y1,
+        ]
+        self.canvas.create_polygon(
+            points,
+            smooth=True,
+            splinesteps=12,
+            fill=fill,
+            outline=outline,
+            width=width,
+            tags=tags,
+        )
+
+    def _draw_face_card(
+        self,
+        pc,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        card_h: float,
+        selected: bool,
+        card_scale: float,
+        tag: str,
+    ) -> None:
+        outline = "#d9a514" if selected else "#272727"
+        text_color = "#b51d2a" if pc.card.suit in ("♥", "♦") else "#111111"
+        soft_suit = "#d9a4aa" if pc.card.suit in ("♥", "♦") else "#8f959a"
+
+        if card_h > 18:
+            self._rounded_rectangle(
+                x1 + 2,
+                y1 + 2,
+                x2 + 2,
+                y2 + 2,
+                8,
+                fill="#0a492c",
+                outline="#0a492c",
+                width=1,
+                tags=(tag,),
+            )
+        self._rounded_rectangle(
+            x1,
+            y1,
+            x2,
+            y2,
+            8,
+            fill="#fffdf7",
+            outline=outline,
+            width=4 if selected else 2,
+            tags=(tag,),
+        )
+
+        if card_h > 30 and card_scale > 0.35:
+            self.canvas.create_text(
+                x1 + 7,
+                y1 + 6,
+                text=pc.card.label,
+                anchor="nw",
+                font=("Arial", 14, "bold"),
+                fill=text_color,
+                tags=(tag,),
+            )
+            self.canvas.create_text(
+                x2 - 7,
+                y2 - 6,
+                text=pc.card.label,
+                anchor="se",
+                font=("Arial", 14, "bold"),
+                fill=text_color,
+                tags=(tag,),
+            )
+
+        if card_h > 76 and card_scale > 0.45:
+            center_text = pc.card.suit if pc.card.rank not in ("J", "Q", "K") else f"{pc.card.rank}{pc.card.suit}"
+            center_size = 29 if len(center_text) == 1 else 22
+            self.canvas.create_text(
+                (x1 + x2) / 2,
+                (y1 + y2) / 2,
+                text=center_text,
+                font=("Arial", center_size, "bold"),
+                fill=soft_suit,
+                tags=(tag,),
+            )
+
+    def _draw_back_card(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        card_h: float,
+        selected: bool,
+        card_scale: float,
+        tag: str,
+    ) -> None:
+        self._rounded_rectangle(
+            x1,
+            y1,
+            x2,
+            y2,
+            8,
+            fill="#203c78",
+            outline="#ffd54f" if selected else "#e2ecff",
+            width=4 if selected else 2,
+            tags=(tag,),
+        )
+        if card_h > 28 and card_scale > 0.35:
+            inset = 7
+            self._rounded_rectangle(
+                x1 + inset,
+                y1 + inset,
+                x2 - inset,
+                y2 - inset,
+                5,
+                fill="#294985",
+                outline="#88a9e7",
+                width=1,
+                tags=(tag,),
+            )
+            usable_h = max(1.0, y2 - y1 - 2 * inset)
+            step = max(8.0, usable_h / 7.0)
+            yy = y1 + inset + step
+            while yy < y2 - inset - 2:
+                self.canvas.create_line(
+                    x1 + inset + 3,
+                    yy,
+                    x2 - inset - 3,
+                    yy - 7,
+                    fill="#9db9ef",
+                    tags=(tag,),
+                )
+                yy += step
+
     def redraw(self):
         new_tag, old_tag = self._frame_tags()
         self.canvas.delete(new_tag)
         self.hit_regions.clear()
 
         width = max(self.canvas.winfo_width(), 1050)
+        canvas_height = max(self.canvas.winfo_height(), 640)
+        fixed_button_y = fixed_flip_button_y(canvas_height)
         pile_count = len(self.game.piles)
         total_w = pile_count * CARD_W + max(0, pile_count - 1) * PILE_GAP
         start_x = max(MARGIN_X, (width - total_w) / 2)
@@ -218,22 +443,20 @@ class ReverseSolitaireApp(tk.Tk):
             angle = self.flip_angle.get(i, math.pi if self.game.flipped[i] else 0.0)
 
             if not pile:
-                self.canvas.create_rectangle(
+                self._rounded_rectangle(
                     base_x,
                     base_y,
                     base_x + CARD_W,
                     base_y + CARD_H,
+                    8,
+                    fill="#0b5d35",
                     outline="#8bc6a7",
-                    dash=(4, 4),
                     width=2,
                     tags=(new_tag,),
                 )
-                pile_bottom = base_y + CARD_H
             else:
                 top_idx = self.game.top_index(i)
-                # Draw lower cards first; list[0] is always the current visual top.
                 render_indices = range(len(pile) - 1, -1, -1)
-                pile_bottom = base_y
 
                 for j in render_indices:
                     pc = pile[j]
@@ -243,7 +466,6 @@ class ReverseSolitaireApp(tk.Tk):
                     )
                     card_h = max(3.0, y2 - y1)
                     y2 = y1 + card_h
-                    pile_bottom = max(pile_bottom, y2)
                     x = base_x
 
                     is_top = j == top_idx
@@ -255,78 +477,29 @@ class ReverseSolitaireApp(tk.Tk):
                         x1, yy1, x2, yy2 = x, y1, x + CARD_W, y2
 
                     if pc.face_up:
-                        outline = "#ffd54f" if selected else "#222222"
-                        self.canvas.create_rectangle(
-                            x1,
-                            yy1,
-                            x2,
-                            yy2,
-                            fill="#fffdf5",
-                            outline=outline,
-                            width=4 if selected else 2,
-                            tags=(new_tag,),
+                        self._draw_face_card(
+                            pc, x1, yy1, x2, yy2, card_h, selected, card_scale, new_tag
                         )
-                        if card_h > 30 and card_scale > 0.35:
-                            suit_red = pc.card.suit in ("♥", "♦")
-                            text_color = "#b00020" if suit_red else "#111111"
-                            self.canvas.create_text(
-                                x1 + 7,
-                                yy1 + 7,
-                                text=pc.card.label,
-                                anchor="nw",
-                                font=("Arial", 14, "bold"),
-                                fill=text_color,
-                                tags=(new_tag,),
-                            )
-                            # Real playing cards repeat the rank/suit at the
-                            # opposite end. In an overlapped fan this lower
-                            # marking remains visible for the 2nd card onward.
-                            self.canvas.create_text(
-                                x2 - 7,
-                                yy2 - 7,
-                                text=pc.card.label,
-                                anchor="se",
-                                font=("Arial", 14, "bold"),
-                                fill=text_color,
-                                tags=(new_tag,),
-                            )
                     else:
-                        self.canvas.create_rectangle(
-                            x1,
-                            yy1,
-                            x2,
-                            yy2,
-                            fill="#273c75",
-                            outline="#ffd54f" if selected else "#d9e7ff",
-                            width=4 if selected else 2,
-                            tags=(new_tag,),
+                        self._draw_back_card(
+                            x1, yy1, x2, yy2, card_h, selected, card_scale, new_tag
                         )
-                        if card_h > 30 and card_scale > 0.35:
-                            stripe_step = max(6.0, card_h / 6.0)
-                            for k in range(5):
-                                yy = yy1 + stripe_step * (k + 1)
-                                if yy < yy2 - 3:
-                                    self.canvas.create_line(
-                                        x1 + 6,
-                                        yy,
-                                        x2 - 6,
-                                        yy - min(7, stripe_step / 2),
-                                        fill="#a8c6ff",
-                                        tags=(new_tag,),
-                                    )
 
                     if is_top and not self.animating:
                         self.hit_regions.append(("top", i, (x1, yy1, x2, yy2)))
 
-            y_button = pile_bottom + 14
+            # Fixed control row: flipping the packet never changes this Y.
+            y_button = fixed_button_y
             direction = "↑" if self.game.flipped[i] else "↓"
-            self.canvas.create_rectangle(
+            self._rounded_rectangle(
                 base_x,
                 y_button,
                 base_x + CARD_W,
                 y_button + 30,
-                fill="#f2f2f2",
-                outline="#111111",
+                6,
+                fill="#f7f7f4",
+                outline="#1f1f1f",
+                width=1,
                 tags=(new_tag,),
             )
             self.canvas.create_text(
@@ -334,6 +507,7 @@ class ReverseSolitaireApp(tk.Tk):
                 y_button + 15,
                 text=f"ひっくり返す {direction}",
                 font=("Yu Gothic UI", 9, "bold"),
+                fill="#202020",
                 tags=(new_tag,),
             )
             if not self.animating:
@@ -355,7 +529,6 @@ class ReverseSolitaireApp(tk.Tk):
             f"手数 {self.game.moves} / {state_text}"
         )
 
-        # Build the new frame completely before dropping the old one.
         self.canvas.delete(old_tag)
 
 
