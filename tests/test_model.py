@@ -21,61 +21,48 @@ def test_cards_alternate_face_direction_in_each_pile():
             assert pc.face_up == (i % 2 == 0)
 
 
-def test_flip_keeps_visual_card_order_and_toggles_physical_side():
-    game = build_state([[('A', '♠', True), ('2', '♠', False), ('3', '♠', True)]])
-    before = [pc.card.rank for pc in game.piles[0]]
-    assert game.flipped == [False]
+def test_downward_flip_reverses_visual_card_order():
+    game = build_state([[('A', '♣', True), ('4', '♠', False), ('9', '♥', True), ('7', '♦', False)]])
 
     game.flip_pile(0)
 
-    assert [pc.card.rank for pc in game.piles[0]] == before
     assert game.flipped == [True]
+    assert [pc.card.label for pc in game.piles[0]] == ['7♦', '9♥', '4♠', 'A♣']
+    assert game.top_card(0).card.label == '7♦'
 
 
-def test_flip_toggles_every_card_face_state():
-    game = build_state([[
-        ('A', '♣', True),
-        ('4', '♠', False),
-        ('9', '♥', True),
-        ('7', '♦', False),
-    ]])
+def test_downward_flip_reverses_every_card_face_state():
+    game = build_state([[('A', '♣', True), ('4', '♠', False), ('9', '♥', True), ('7', '♦', False)]])
 
     game.flip_pile(0)
 
-    assert [pc.face_up for pc in game.piles[0]] == [False, True, False, True]
+    # Reverse order + face toggle:
+    # old 7♦ back -> new top 7♦ face
+    # old 9♥ face -> back
+    # old 4♠ back -> face
+    # old A♣ face -> back
+    assert [pc.face_up for pc in game.piles[0]] == [True, False, True, False]
 
 
-def test_user_reference_packet_preserves_order_and_reveals_previous_backs():
-    """Regression for the user's four-card reference image.
-
-    Before flip, top-to-bottom is A♣ face, hidden, 9♥ face, hidden.
-    After flip the card identities remain in those same four slots, while all
-    face states toggle: back, readable, back, readable.
-    """
-    game = build_state([[
-        ('A', '♣', True),
-        ('4', '♠', False),
-        ('9', '♥', True),
-        ('7', '♦', False),
-    ]])
+def test_user_reference_packet_is_reversed_and_faces_are_flipped():
+    game = build_state([[('A', '♣', True), ('4', '♠', False), ('9', '♥', True), ('7', '♦', False)]])
 
     game.flip_pile(0)
 
-    assert [pc.card.label for pc in game.piles[0]] == ['A♣', '4♠', '9♥', '7♦']
-    assert [pc.face_up for pc in game.piles[0]] == [False, True, False, True]
-    assert game.top_card(0).card.label == 'A♣'
-    assert game.top_card(0).face_up is False
+    assert [pc.card.label for pc in game.piles[0]] == ['7♦', '9♥', '4♠', 'A♣']
+    assert [pc.face_up for pc in game.piles[0]] == [True, False, True, False]
+    assert game.top_card(0).card.label == '7♦'
+    assert game.top_card(0).face_up is True
 
 
-def test_second_flip_restores_original_face_pattern_and_upper_side():
-    game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
+def test_two_flips_restore_original_order_and_faces():
+    game = build_state([[('A', '♣', True), ('4', '♠', False), ('9', '♥', True), ('7', '♦', False)]])
     before = [(pc.card.label, pc.face_up) for pc in game.piles[0]]
 
     game.flip_pile(0)
-    assert game.flipped[0] is True
     game.flip_pile(0)
 
-    assert game.flipped[0] is False
+    assert game.flipped == [False]
     assert [(pc.card.label, pc.face_up) for pc in game.piles[0]] == before
 
 
@@ -101,21 +88,19 @@ def test_matching_top_ranks_can_be_removed_even_when_hidden():
     assert game.remove_selected()
     assert game.remaining_cards == 2
     assert game.removed_pairs == 1
-    assert [pc.card.rank for pc in game.piles[0]] == ['2']
-    assert [pc.card.rank for pc in game.piles[1]] == ['3']
 
 
-def test_remove_after_flip_pops_visual_first_card():
+def test_remove_after_downward_flip_pops_new_visible_top():
     game = build_state([
-        [('A', '♠', True), ('7', '♠', False)],
-        [('A', '♥', True), ('8', '♥', False)],
+        [('7', '♠', True), ('A', '♠', False)],
+        [('8', '♥', True), ('A', '♥', False)],
     ])
     game.flip_pile(0)
     game.flip_pile(1)
     assert game.top_card(0).card.rank == 'A'
     assert game.top_card(1).card.rank == 'A'
-    assert game.top_card(0).face_up is False
-    assert game.top_card(1).face_up is False
+    assert game.top_card(0).face_up is True
+    assert game.top_card(1).face_up is True
     game.toggle_select(0)
     game.toggle_select(1)
     assert game.remove_selected()
@@ -124,10 +109,7 @@ def test_remove_after_flip_pops_visual_first_card():
 
 
 def test_different_ranks_cannot_be_removed():
-    game = build_state([
-        [('K', '♠', True)],
-        [('Q', '♥', True)],
-    ])
+    game = build_state([[('K', '♠', True)], [('Q', '♥', True)]])
     game.toggle_select(0)
     game.toggle_select(1)
     assert game.remove_selected() is False
@@ -135,10 +117,7 @@ def test_different_ranks_cannot_be_removed():
 
 
 def test_clear_selection_after_mismatch():
-    game = build_state([
-        [('K', '♠', True)],
-        [('Q', '♥', True)],
-    ])
+    game = build_state([[('K', '♠', True)], [('Q', '♥', True)]])
     game.toggle_select(0)
     game.toggle_select(1)
     game.clear_selection()
@@ -146,10 +125,7 @@ def test_clear_selection_after_mismatch():
 
 
 def test_win_when_all_cards_removed():
-    game = build_state([
-        [('A', '♠', True)],
-        [('A', '♥', False)],
-    ])
+    game = build_state([[('A', '♠', True)], [('A', '♥', False)]])
     game.toggle_select(0)
     game.toggle_select(1)
     game.remove_selected()

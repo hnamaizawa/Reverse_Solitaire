@@ -27,21 +27,18 @@ def project_card_vertical_bounds(
     hinge_y: float,
     angle: float,
 ) -> tuple[float, float]:
-    """Project one card during the packet's top/bottom turnover.
+    """Project one visual slot while the packet rotates around a horizontal hinge.
 
-    The packet still crosses the horizontal hinge, but its internal top-to-bottom
-    order is preserved. At 0 degrees the packet is above the hinge, at 90 degrees
-    it is edge-on, and at 180 degrees it has moved below the hinge with the same
-    visual card order.
+    The slot geometry stays stable. At the edge-on midpoint the model reverses
+    which card identity occupies each slot, so the packet lands below the hinge
+    in reversed top-to-bottom order.
     """
     scale = abs(math.cos(angle))
     slot_offset = natural_y - base_y
 
     if math.cos(angle) >= 0:
-        # Upper side: collapse toward the hinge as the packet approaches 90°.
         y1 = hinge_y - (hinge_y - natural_y) * scale
     else:
-        # Lower side: expand away from the hinge while preserving slot order.
         y1 = hinge_y + slot_offset * scale
 
     y2 = y1 + card_h * scale
@@ -51,7 +48,7 @@ def project_card_vertical_bounds(
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.9")
+        self.title("Reverse Solitaire v0.1.10")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -59,7 +56,6 @@ class ReverseSolitaireApp(tk.Tk):
         self.game = GameState.new()
         self.status = tk.StringVar()
         self.animating = False
-
         self.flip_angle: dict[int, float] = {}
         self.remove_scale: dict[int, float] = {}
         self.frame_slot = 0
@@ -68,16 +64,23 @@ class ReverseSolitaireApp(tk.Tk):
         toolbar.pack(fill="x")
         tk.Button(toolbar, text="新しいゲーム", command=self.new_game).pack(side="left", padx=8, pady=8)
         tk.Button(toolbar, text="ギブアップ", command=self.give_up).pack(side="left", padx=4, pady=8)
-        tk.Label(toolbar, textvariable=self.status, fg="white", bg="#123c2a",
-                 font=("Yu Gothic UI", 11, "bold")).pack(side="right", padx=12)
+        tk.Label(
+            toolbar,
+            textvariable=self.status,
+            fg="white",
+            bg="#123c2a",
+            font=("Yu Gothic UI", 11, "bold"),
+        ).pack(side="right", padx=12)
 
         guide = tk.Label(
             self,
             text=(
                 "一番上のカードを2枚クリック。同じ数字なら自動で消えます。"
-                "［ひっくり返す ↓/↑］で山全体を上下へ倒し、各カードの表裏を切り替えます。"
+                "［ひっくり返す ↓/↑］で上下順を反転。下側では全カードの数字・マークが見えます。"
             ),
-            fg="white", bg="#0b5d35", font=("Yu Gothic UI", 10),
+            fg="white",
+            bg="#0b5d35",
+            font=("Yu Gothic UI", 10),
         )
         guide.pack(fill="x", pady=(8, 0))
 
@@ -149,8 +152,8 @@ class ReverseSolitaireApp(tk.Tk):
             self.flip_angle[pile_index] = angle
 
             if step == midpoint:
-                # At 90° the packet is almost edge-on, so switching every card's
-                # face state is visually hidden and reads like a real turnover.
+                # Edge-on is the hidden transition point: reverse the packet
+                # order and switch its upper/lower-side face policy here.
                 self.game.flip_pile(pile_index)
 
             self.redraw()
@@ -212,26 +215,26 @@ class ReverseSolitaireApp(tk.Tk):
             base_y = MARGIN_Y
             natural_height = CARD_H if not pile else (len(pile) - 1) * OFFSET_Y + CARD_H
             hinge_y = base_y + natural_height
-
-            if i in self.flip_angle:
-                angle = self.flip_angle[i]
-            else:
-                angle = math.pi if self.game.flipped[i] else 0.0
+            angle = self.flip_angle.get(i, math.pi if self.game.flipped[i] else 0.0)
 
             if not pile:
                 self.canvas.create_rectangle(
-                    base_x, base_y, base_x + CARD_W, base_y + CARD_H,
-                    outline="#8bc6a7", dash=(4, 4), width=2, tags=(new_tag,),
+                    base_x,
+                    base_y,
+                    base_x + CARD_W,
+                    base_y + CARD_H,
+                    outline="#8bc6a7",
+                    dash=(4, 4),
+                    width=2,
+                    tags=(new_tag,),
                 )
                 pile_bottom = base_y + CARD_H
             else:
                 top_idx = self.game.top_index(i)
-
-                # Draw bottom cards first so visual card 0 stays on top. The
-                # card identity order is identical before and after a turnover.
+                # Draw lower cards first; list[0] is always the current visual top.
                 render_indices = range(len(pile) - 1, -1, -1)
-
                 pile_bottom = base_y
+
                 for j in render_indices:
                     pc = pile[j]
                     natural_y = base_y + j * OFFSET_Y
@@ -253,24 +256,37 @@ class ReverseSolitaireApp(tk.Tk):
 
                     if pc.face_up:
                         outline = "#ffd54f" if selected else "#222222"
-                        width_line = 4 if selected else 2
                         self.canvas.create_rectangle(
-                            x1, yy1, x2, yy2, fill="#fffdf5",
-                            outline=outline, width=width_line, tags=(new_tag,),
+                            x1,
+                            yy1,
+                            x2,
+                            yy2,
+                            fill="#fffdf5",
+                            outline=outline,
+                            width=4 if selected else 2,
+                            tags=(new_tag,),
                         )
                         if card_h > 30 and card_scale > 0.35:
                             suit_red = pc.card.suit in ("♥", "♦")
                             self.canvas.create_text(
-                                x1 + 7, yy1 + 7, text=pc.card.label, anchor="nw",
+                                x1 + 7,
+                                yy1 + 7,
+                                text=pc.card.label,
+                                anchor="nw",
                                 font=("Arial", 14, "bold"),
                                 fill="#b00020" if suit_red else "#111111",
                                 tags=(new_tag,),
                             )
                     else:
                         self.canvas.create_rectangle(
-                            x1, yy1, x2, yy2, fill="#273c75",
+                            x1,
+                            yy1,
+                            x2,
+                            yy2,
+                            fill="#273c75",
                             outline="#ffd54f" if selected else "#d9e7ff",
-                            width=4 if selected else 2, tags=(new_tag,),
+                            width=4 if selected else 2,
+                            tags=(new_tag,),
                         )
                         if card_h > 30 and card_scale > 0.35:
                             stripe_step = max(6.0, card_h / 6.0)
@@ -278,8 +294,12 @@ class ReverseSolitaireApp(tk.Tk):
                                 yy = yy1 + stripe_step * (k + 1)
                                 if yy < yy2 - 3:
                                     self.canvas.create_line(
-                                        x1 + 6, yy, x2 - 6, yy - min(7, stripe_step / 2),
-                                        fill="#a8c6ff", tags=(new_tag,),
+                                        x1 + 6,
+                                        yy,
+                                        x2 - 6,
+                                        yy - min(7, stripe_step / 2),
+                                        fill="#a8c6ff",
+                                        tags=(new_tag,),
                                     )
 
                     if is_top and not self.animating:
@@ -288,18 +308,30 @@ class ReverseSolitaireApp(tk.Tk):
             y_button = pile_bottom + 14
             direction = "↑" if self.game.flipped[i] else "↓"
             self.canvas.create_rectangle(
-                base_x, y_button, base_x + CARD_W, y_button + 30,
-                fill="#f2f2f2", outline="#111111", tags=(new_tag,),
+                base_x,
+                y_button,
+                base_x + CARD_W,
+                y_button + 30,
+                fill="#f2f2f2",
+                outline="#111111",
+                tags=(new_tag,),
             )
             self.canvas.create_text(
-                base_x + CARD_W / 2, y_button + 15, text=f"ひっくり返す {direction}",
-                font=("Yu Gothic UI", 9, "bold"), tags=(new_tag,),
+                base_x + CARD_W / 2,
+                y_button + 15,
+                text=f"ひっくり返す {direction}",
+                font=("Yu Gothic UI", 9, "bold"),
+                tags=(new_tag,),
             )
             if not self.animating:
                 self.hit_regions.append(("flip", i, (base_x, y_button, base_x + CARD_W, y_button + 30)))
             self.canvas.create_text(
-                base_x + CARD_W / 2, y_button + 47, text=f"組 {i + 1}",
-                fill="white", font=("Yu Gothic UI", 9), tags=(new_tag,),
+                base_x + CARD_W / 2,
+                y_button + 47,
+                text=f"組 {i + 1}",
+                fill="white",
+                font=("Yu Gothic UI", 9),
+                tags=(new_tag,),
             )
 
         state_text = "クリア！" if self.game.won else (
@@ -310,8 +342,7 @@ class ReverseSolitaireApp(tk.Tk):
             f"手数 {self.game.moves} / {state_text}"
         )
 
-        # Pseudo double-buffering: discard the old frame only after the new one
-        # has been fully constructed, preventing an empty-canvas flash.
+        # Build the new frame completely before dropping the old one.
         self.canvas.delete(old_tag)
 
 
