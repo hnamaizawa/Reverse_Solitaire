@@ -23,7 +23,7 @@ PILE_GAP = 14
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.3")
+        self.title("Reverse Solitaire v0.1.4")
         self.geometry("1280x760")
         self.minsize(1080, 650)
         self.configure(bg="#0b5d35")
@@ -32,17 +32,9 @@ class ReverseSolitaireApp(tk.Tk):
         self.status = tk.StringVar()
         self.animating = False
 
-        # Animation state. A pile flip is rendered as a vertical (top/bottom)
-        # rotation: the pile collapses toward a horizontal hinge line and then
-        # expands again after the model has been reversed.
         self.flip_y_scale: dict[int, float] = {}
         self.flip_lift: dict[int, float] = {}
         self.remove_scale: dict[int, float] = {}
-
-        # Pseudo double-buffering. We render the next frame under a new tag,
-        # then discard the previous tag only after the new frame is complete.
-        # Tk does not repaint the window until this callback returns, so this
-        # avoids exposing the empty canvas between delete/create operations.
         self.frame_slot = 0
 
         toolbar = tk.Frame(self, bg="#123c2a")
@@ -54,7 +46,7 @@ class ReverseSolitaireApp(tk.Tk):
 
         guide = tk.Label(
             self,
-            text="一番上のカードを2枚クリック。同じ数字なら自動で消えます。［ひっくり返す］で上下に反転します。",
+            text="一番上のカードを2枚クリック。同じ数字なら自動で消えます。［ひっくり返す］で位置を変えず上下に反転します。",
             fg="white", bg="#0b5d35", font=("Yu Gothic UI", 10),
         )
         guide.pack(fill="x", pady=(8, 0))
@@ -116,12 +108,11 @@ class ReverseSolitaireApp(tk.Tk):
 
         def frame(step: int):
             if step == midpoint:
+                # The cards keep their screen positions. The model only toggles
+                # face states and switches which end of the stack is exposed.
                 self.game.flip_pile(pile_index)
 
             t = step / frames
-            # A domino-like vertical flip around the pile's bottom edge.
-            # At 90 degrees the pile becomes a thin horizontal strip; after
-            # the midpoint, the reversed pile expands back into view.
             y_scale = max(0.035, abs(math.cos(math.pi * t)))
             lift = -math.sin(math.pi * t) * 10.0
             self.flip_y_scale[pile_index] = y_scale
@@ -172,8 +163,6 @@ class ReverseSolitaireApp(tk.Tk):
         return new_tag, old_tag
 
     def redraw(self):
-        # Do not call update()/update_idletasks() here. Doing so between deletion
-        # and recreation exposes an empty frame and causes visible flicker.
         new_tag, old_tag = self._frame_tags()
         self.canvas.delete(new_tag)
         self.hit_regions.clear()
@@ -199,15 +188,22 @@ class ReverseSolitaireApp(tk.Tk):
                 )
                 y_button = base_y + CARD_H + 14
             else:
-                for j, pc in enumerate(pile):
+                top_idx = self.game.top_index(i)
+                # Screen positions never change. Only depth order changes after a
+                # vertical turnover, so the newly exposed end is painted last.
+                if self.game.exposed_from_start[i]:
+                    render_indices = range(len(pile) - 1, -1, -1)
+                else:
+                    render_indices = range(len(pile))
+
+                for j in render_indices:
+                    pc = pile[j]
                     natural_y = base_y + j * OFFSET_Y
-                    # Scale all vertical coordinates around the pile's bottom
-                    # hinge, which visually reads as a top/bottom domino flip.
                     y = hinge_y - (hinge_y - natural_y) * y_scale
                     card_h = max(3.0, CARD_H * y_scale)
                     x = base_x
 
-                    is_top = j == len(pile) - 1
+                    is_top = j == top_idx
                     selected = i in self.game.selected and is_top
                     card_scale = self.remove_scale.get(i, 1.0) if is_top else 1.0
                     if card_scale != 1.0:
@@ -274,8 +270,6 @@ class ReverseSolitaireApp(tk.Tk):
             f"手数 {self.game.moves} / {state_text}"
         )
 
-        # Commit the completed frame. The old frame remains valid while the new
-        # one is being built, like updating during a vertical blank interval.
         self.canvas.delete(old_tag)
 
 
