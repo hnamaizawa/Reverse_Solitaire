@@ -1,11 +1,12 @@
 project: Reverse Solitaire
-version: 0.1.17
+version: 0.1.18
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
   - Cards are dealt into piles of 6 cards, with the final pile allowed to be smaller.
   - With 52 cards the normal deal is 8 piles of 6 cards plus a final pile of 4 cards.
   - Cards in each pile initially alternate face-up and face-down.
+  - Easy mode must deal the same 52-card deck and pile sizes while preventing duplicate ranks inside any one pile.
   - Flipping a pile is a physical top-to-bottom turnover around a horizontal hinge, not an in-place mirror or squash/re-expand effect.
   - A downward flip must move the whole packet to the lower side of the hinge; the next upward flip must move it back to the upper side.
   - Every flip reverses the cards' visual top-to-bottom order.
@@ -28,8 +29,12 @@ non_negotiable_invariants:
   - The user-visible mute toggle is a master audio switch: while enabled, no BGM or sound effect may start.
   - Enabling mute while audio is already playing must stop that audio immediately.
   - All present and future game audio must pass through the same master-mute gate.
+  - User-facing dialogs used by gameplay must be application-drawn rather than Windows MessageBox dialogs so mute mode cannot leak Windows notification sounds.
   - The hint control may report only whether at least one currently removable top-card rank pair exists; it must not reveal which piles form the pair.
   - Hint detection must consider the current visual top card of every non-empty pile, including a face-down top card that is selectable by memory.
+  - Undo is one-level only and must restore the complete previous state for the most recent flip, successful pair removal, or give-up action.
+  - Undo must restore cards, card face states, pile side, move count, removed-pair count, and finished state consistently.
+  - Starting a new game clears the undo history.
   - A Windows standalone build must be producible as one GUI executable named ReverseSolitaire.exe.
   - The standalone executable must not require Python, source files, WAV files, or other application files to be copied beside it on the destination Windows PC.
   - The flip direction alternates down then up according to the packet's current physical side.
