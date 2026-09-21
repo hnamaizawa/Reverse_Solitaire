@@ -8,9 +8,19 @@ sys.path.insert(0, str(ROOT / "src"))
 from reverse_solitaire.model import GameState, build_state
 
 
-def test_easy_mode_allows_at_most_one_pair_per_pile_and_keeps_pair_apart():
+def test_easy_mode_has_no_duplicate_rank_in_any_pile():
     for seed in range(100):
         game = GameState.new(seed=seed, easy_mode=True)
+        assert [len(p) for p in game.piles] == [6] * 8 + [4]
+        assert game.remaining_cards == 52
+        for pile in game.piles:
+            ranks = [pc.card.rank for pc in pile]
+            assert len(ranks) == len(set(ranks))
+
+
+def test_standard_mode_allows_at_most_one_pair_per_pile_and_keeps_pair_apart():
+    for seed in range(100):
+        game = GameState.new(seed=seed, easy_mode=False)
         assert [len(p) for p in game.piles] == [6] * 8 + [4]
         assert game.remaining_cards == 52
 
@@ -26,11 +36,17 @@ def test_easy_mode_allows_at_most_one_pair_per_pile_and_keeps_pair_apart():
             assert len(duplicated) <= 1
             for rank in duplicated:
                 first, second = positions[rank]
-                assert second - first >= 3  # at least two cards between the pair
+                assert second - first >= 3
 
 
 def test_easy_mode_preserves_initial_face_alternation():
     game = GameState.new(seed=123, easy_mode=True)
+    for pile in game.piles:
+        assert [pc.face_up for pc in pile] == [i % 2 == 0 for i in range(len(pile))]
+
+
+def test_standard_mode_preserves_initial_face_alternation():
+    game = GameState.new(seed=124, easy_mode=False)
     for pile in game.piles:
         assert [pc.face_up for pc in pile] == [i % 2 == 0 for i in range(len(pile))]
 
