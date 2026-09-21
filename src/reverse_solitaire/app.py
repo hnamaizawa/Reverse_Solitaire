@@ -22,7 +22,7 @@ PILE_GAP = 22
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.0")
+        self.title("Reverse Solitaire v0.1.1")
         self.geometry("1000x760")
         self.minsize(820, 640)
         self.configure(bg="#0b5d35")
@@ -39,7 +39,7 @@ class ReverseSolitaireApp(tk.Tk):
 
         guide = tk.Label(
             self,
-            text="操作: 表向きの一番上のカードをクリックして2枚選択 / 山の下の［ひっくり返す］で山全体を反転",
+            text="操作: 表向きの一番上のカードをクリックして2枚選択 / 山の下の［ひっくり返す］で同じ位置のまま表裏を反転",
             fg="white", bg="#0b5d35", font=("Yu Gothic UI", 10),
         )
         guide.pack(fill="x", pady=(8, 0))
