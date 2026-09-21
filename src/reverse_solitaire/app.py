@@ -17,13 +17,13 @@ CARD_H = 118
 OFFSET_Y = 40
 MARGIN_X = 16
 MARGIN_Y = 60
-PILE_GAP = 14
+PILE_GAP = 20
 
 
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.5")
+        self.title("Reverse Solitaire v0.1.6")
         self.geometry("1280x760")
         self.minsize(1080, 650)
         self.configure(bg="#0b5d35")
@@ -46,7 +46,7 @@ class ReverseSolitaireApp(tk.Tk):
 
         guide = tk.Label(
             self,
-            text="一番上のカードを2枚クリック。同じ数字なら自動で消えます。［ひっくり返す］で位置を変えず上下に反転します。",
+            text="一番上のカードを2枚クリック。同じ数字なら自動で消えます。［ひっくり返す］で山全体を物理的に上下反転します。",
             fg="white", bg="#0b5d35", font=("Yu Gothic UI", 10),
         )
         guide.pack(fill="x", pady=(8, 0))
@@ -108,6 +108,9 @@ class ReverseSolitaireApp(tk.Tk):
 
         def frame(step: int):
             if step == midpoint:
+                # At the edge-on moment the physical orientation changes. The
+                # next half of the animation expands with every card mirrored
+                # to the opposite vertical slot.
                 self.game.flip_pile(pile_index)
 
             t = step / frames
@@ -187,6 +190,7 @@ class ReverseSolitaireApp(tk.Tk):
                 y_button = base_y + CARD_H + 14
             else:
                 top_idx = self.game.top_index(i)
+                # Paint the physically exposed end last.
                 if self.game.exposed_from_start[i]:
                     render_indices = range(len(pile) - 1, -1, -1)
                 else:
@@ -194,7 +198,11 @@ class ReverseSolitaireApp(tk.Tk):
 
                 for j in render_indices:
                     pc = pile[j]
-                    natural_y = base_y + j * OFFSET_Y
+                    # A physical top-to-bottom turnover mirrors every card into
+                    # the opposite vertical slot. The switch happens while the
+                    # pile is almost edge-on, so the movement reads naturally.
+                    display_slot = len(pile) - 1 - j if self.game.exposed_from_start[i] else j
+                    natural_y = base_y + display_slot * OFFSET_Y
                     y = hinge_y - (hinge_y - natural_y) * y_scale
                     card_h = max(3.0, CARD_H * y_scale)
                     x = base_x
