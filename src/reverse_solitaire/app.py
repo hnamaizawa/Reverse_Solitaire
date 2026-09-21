@@ -32,9 +32,9 @@ def project_card_vertical_bounds(
     angle=pi/2: edge-on at the hinge
     angle=pi  : physically flipped to the opposite (lower) side
 
-    Keeping the sign of cos(angle) is important: using abs(cos()) only squashes
-    and re-expands the pile in place, while a real domino-like turnover moves it
-    through the hinge to the other side.
+    The sign of cos(angle) is intentionally preserved. That makes every card
+    cross the hinge and land in the reversed vertical order, exactly like a
+    real overlapped packet being toppled over.
     """
     c = math.cos(angle)
     top = hinge_y - (hinge_y - natural_y) * c
@@ -45,7 +45,7 @@ def project_card_vertical_bounds(
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.7")
+        self.title("Reverse Solitaire v0.1.8")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -54,8 +54,6 @@ class ReverseSolitaireApp(tk.Tk):
         self.status = tk.StringVar()
         self.animating = False
 
-        # During a flip, this stores the physical rotation angle for a pile.
-        # Static piles use 0 rad (upper/original side) or pi rad (lower/flipped side).
         self.flip_angle: dict[int, float] = {}
         self.remove_scale: dict[int, float] = {}
         self.frame_slot = 0
@@ -71,7 +69,7 @@ class ReverseSolitaireApp(tk.Tk):
             self,
             text=(
                 "一番上のカードを2枚クリック。同じ数字なら自動で消えます。"
-                "［ひっくり返す ↓/↑］で実物のカード束のように上下へ倒します。"
+                "［ひっくり返す ↓/↑］でカードの山を物理的に上下へ倒します。"
             ),
             fg="white", bg="#0b5d35", font=("Yu Gothic UI", 10),
         )
@@ -134,21 +132,19 @@ class ReverseSolitaireApp(tk.Tk):
         self.animating = True
         frames = 22
         midpoint = frames // 2
-        flipping_down = not self.game.exposed_from_start[pile_index]
+        flipping_down = not self.game.flipped[pile_index]
         start_angle = 0.0 if flipping_down else math.pi
         end_angle = math.pi if flipping_down else 0.0
 
         def frame(step: int):
-            # Smoothstep-like cosine easing gives the turnover some physical
-            # weight: gentle start, fastest through edge-on, gentle landing.
             t = step / frames
             eased = 0.5 - 0.5 * math.cos(math.pi * t)
             angle = start_angle + (end_angle - start_angle) * eased
             self.flip_angle[pile_index] = angle
 
             if step == midpoint:
-                # At 90 degrees the faces are almost invisible. Change the game
-                # side here so the second half reveals the physically new top.
+                # At 90 degrees the packet is almost edge-on. Commit the rule
+                # state there, while the card faces/order transition is hidden.
                 self.game.flip_pile(pile_index)
 
             self.redraw()
@@ -209,15 +205,12 @@ class ReverseSolitaireApp(tk.Tk):
             base_x = start_x + i * (CARD_W + PILE_GAP)
             base_y = MARGIN_Y
             natural_height = CARD_H if not pile else (len(pile) - 1) * OFFSET_Y + CARD_H
-            # The lower edge of the original fan is the real hinge. Rotating
-            # through pi therefore moves the whole pile below this line; rotating
-            # back to zero moves it upward again.
             hinge_y = base_y + natural_height
 
             if i in self.flip_angle:
                 angle = self.flip_angle[i]
             else:
-                angle = math.pi if self.game.exposed_from_start[i] else 0.0
+                angle = math.pi if self.game.flipped[i] else 0.0
 
             if not pile:
                 self.canvas.create_rectangle(
@@ -228,12 +221,10 @@ class ReverseSolitaireApp(tk.Tk):
             else:
                 top_idx = self.game.top_index(i)
 
-                # Before edge-on, the original exposed side should be painted
-                # last; after edge-on, the opposite exposed side is painted last.
-                if self.game.exposed_from_start[i]:
-                    render_indices = range(len(pile) - 1, -1, -1)
-                else:
-                    render_indices = range(len(pile))
+                # The same free-end card is painted last on both sides. Its
+                # spatial position crosses the hinge, so the visual order is
+                # reversed by physics rather than by a logical 'keep top' rule.
+                render_indices = range(len(pile))
 
                 pile_bottom = base_y
                 for j in render_indices:
@@ -287,10 +278,8 @@ class ReverseSolitaireApp(tk.Tk):
                     if is_top and not self.animating:
                         self.hit_regions.append(("top", i, (x1, yy1, x2, yy2)))
 
-            # Keep the control with the actual physical packet rather than the
-            # old location. The arrow tells which way the next turnover travels.
             y_button = pile_bottom + 14
-            direction = "↑" if self.game.exposed_from_start[i] else "↓"
+            direction = "↑" if self.game.flipped[i] else "↓"
             self.canvas.create_rectangle(
                 base_x, y_button, base_x + CARD_W, y_button + 30,
                 fill="#f2f2f2", outline="#111111", tags=(new_tag,),
@@ -307,15 +296,13 @@ class ReverseSolitaireApp(tk.Tk):
             )
 
         state_text = "クリア！" if self.game.won else (
-            "ギブアップ" if self.game.given_up else "記憶を頼りにペアを探してください"
+            "ギブアップ" if self.game.given_up else "ペアを探してください"
         )
         self.status.set(
             f"残り {self.game.remaining_cards}枚 / 取り除いたペア {self.game.removed_pairs} / "
             f"手数 {self.game.moves} / {state_text}"
         )
 
-        # Commit only after the complete next frame exists, preserving the
-        # flicker-free pseudo double-buffering behavior.
         self.canvas.delete(old_tag)
 
 
