@@ -21,12 +21,12 @@ def test_cards_alternate_face_direction_in_each_pile():
             assert pc.face_up == (i % 2 == 0)
 
 
-def test_flip_keeps_visual_order_and_toggles_visibility():
+def test_flip_keeps_visual_order_and_flips_non_exposed_visibility():
     game = build_state([[('A', '♠', True), ('2', '♠', False), ('3', '♠', True)]])
     before = [pc.card.rank for pc in game.piles[0]]
     game.flip_pile(0)
     assert [pc.card.rank for pc in game.piles[0]] == before
-    assert [pc.face_up for pc in game.piles[0]] == [False, True, False]
+    assert [pc.face_up for pc in game.piles[0]] == [True, True, False]
 
 
 def test_flip_switches_exposed_end_without_reordering_cards():
@@ -37,15 +37,26 @@ def test_flip_switches_exposed_end_without_reordering_cards():
     assert game.top_card(0).card.rank == 'A'
 
 
-def test_flip_twice_restores_face_state_and_exposed_end():
+def test_newly_exposed_card_is_always_face_up_after_flip():
     game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
-    before = [(pc.card.rank, pc.card.suit, pc.face_up) for pc in game.piles[0]]
+    game.flip_pile(0)
+    assert game.top_card(0).card.rank == 'A'
+    assert game.top_card(0).face_up is True
+    game.flip_pile(0)
+    assert game.top_card(0).card.rank == 'K'
+    assert game.top_card(0).face_up is True
+
+
+def test_flip_twice_restores_exposed_end_without_reordering_cards():
+    game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
+    before_order = [(pc.card.rank, pc.card.suit) for pc in game.piles[0]]
     before_top = game.top_card(0).card.rank
     game.flip_pile(0)
     game.flip_pile(0)
-    after = [(pc.card.rank, pc.card.suit, pc.face_up) for pc in game.piles[0]]
-    assert after == before
+    after_order = [(pc.card.rank, pc.card.suit) for pc in game.piles[0]]
+    assert after_order == before_order
     assert game.top_card(0).card.rank == before_top
+    assert game.top_card(0).face_up is True
 
 
 def test_hidden_top_card_can_be_selected_by_memory():
@@ -79,6 +90,8 @@ def test_remove_after_flip_pops_newly_exposed_start_card():
     game.flip_pile(1)
     assert game.top_card(0).card.rank == 'A'
     assert game.top_card(1).card.rank == 'A'
+    assert game.top_card(0).face_up is True
+    assert game.top_card(1).face_up is True
     game.toggle_select(0)
     game.toggle_select(1)
     assert game.remove_selected()
