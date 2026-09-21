@@ -29,9 +29,10 @@ class GameState:
 
     def __init__(self, piles: list[list[PileCard]]):
         self.piles = piles
-        # False: the visually lower end (list[-1]) is exposed/selectable.
-        # True: the visually upper end (list[0]) is exposed/selectable.
-        # Flipping a pile never reorders cards; it only changes which end is on top.
+        # False: list[-1] is physically exposed/selectable.
+        # True: list[0] is physically exposed/selectable.
+        # The GUI mirrors the cards' vertical positions when this changes so the
+        # pile looks as if the real cards were turned over top-to-bottom.
         self.exposed_from_start = [False for _ in piles]
         self.selected: list[int] = []
         self.given_up = False
@@ -39,7 +40,7 @@ class GameState:
         self.removed_pairs = 0
 
     @classmethod
-    def new(cls, *, seed: int | None = None, pile_size: int = 5) -> "GameState":
+    def new(cls, *, seed: int | None = None, pile_size: int = 6) -> "GameState":
         if pile_size <= 0:
             raise ValueError("pile_size must be positive")
         deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
@@ -75,11 +76,12 @@ class GameState:
         return None if idx is None else self.piles[pile_index][idx]
 
     def flip_pile(self, pile_index: int) -> None:
-        """Turn a pile over without moving cards in screen order.
+        """Turn a pile over top-to-bottom.
 
-        Every card changes face state, the exposed/selectable end switches,
-        and the newly exposed card is always made face-up so its rank and suit
-        are visible immediately after the flip.
+        Stored card order is kept stable for rule tracking. The exposed end
+        switches, every card changes face state, and the newly exposed card is
+        always face-up. The GUI mirrors vertical screen positions to express the
+        physical top-to-bottom turnover.
         """
         if self.finished:
             return
@@ -155,7 +157,7 @@ class GameState:
 
 
 def build_state(piles: Iterable[Iterable[tuple[str, str, bool]]]) -> GameState:
-    """Small test helper: iterable of (rank, suit, face_up), visual top -> bottom order."""
+    """Small test helper: iterable of (rank, suit, face_up), stored top-to-bottom order."""
     return GameState([
         [PileCard(Card(rank, suit), face_up) for rank, suit, face_up in pile]
         for pile in piles
