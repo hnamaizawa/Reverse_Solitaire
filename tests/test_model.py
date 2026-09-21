@@ -21,13 +21,22 @@ def test_cards_alternate_face_direction_in_each_pile():
             assert pc.face_up == (i % 2 == 0)
 
 
-def test_flip_reverses_pile_and_toggles_visibility():
+def test_flip_keeps_card_positions_and_toggles_visibility():
     game = build_state([[('A', '♠', True), ('2', '♠', False), ('3', '♠', True)]])
     before = [pc.card.rank for pc in game.piles[0]]
     before_faces = [pc.face_up for pc in game.piles[0]]
     game.flip_pile(0)
-    assert [pc.card.rank for pc in game.piles[0]] == list(reversed(before))
-    assert [pc.face_up for pc in game.piles[0]] == [not x for x in reversed(before_faces)]
+    assert [pc.card.rank for pc in game.piles[0]] == before
+    assert [pc.face_up for pc in game.piles[0]] == [not x for x in before_faces]
+
+
+def test_flip_twice_restores_original_state_without_moving_cards():
+    game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
+    before = [(pc.card.rank, pc.card.suit, pc.face_up) for pc in game.piles[0]]
+    game.flip_pile(0)
+    game.flip_pile(0)
+    after = [(pc.card.rank, pc.card.suit, pc.face_up) for pc in game.piles[0]]
+    assert after == before
 
 
 def test_only_face_up_top_cards_can_be_selected():
