@@ -25,14 +25,15 @@ class PileCard:
 
 
 class GameState:
-    """Core rules for the memory-solitaire prototype.
+    """Core rules for Reverse Solitaire.
 
-    Interpretation used in v0.1.0:
+    Rule interpretation from v0.1.1:
     - A standard 52-card deck is shuffled and dealt into piles, 8 cards per pile
       (the final pile may contain fewer cards).
     - Cards in each pile alternate face-up / face-down from bottom to top.
-    - The whole pile can be flipped. Flipping reverses the pile and toggles every
-      card's visible state, so known/unknown cards trade places.
+    - Flipping a pile does not move any card. It only toggles every card's
+      face-up / face-down state, so known/unknown cards trade places while
+      staying in exactly the same positions.
     - Only the top card of a pile can be selected for matching.
     - Two face-up top cards with the same rank can be removed.
     - The player wins when all cards are removed.
@@ -83,7 +84,6 @@ class GameState:
         pile = self.piles[pile_index]
         if not pile:
             return
-        pile.reverse()
         for pc in pile:
             pc.face_up = not pc.face_up
         self.selected.clear()
