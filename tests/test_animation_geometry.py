@@ -9,7 +9,9 @@ from reverse_solitaire.app import (
     FLIP_BUTTON_H,
     FLIP_FRAME_MS,
     FLIP_FRAMES,
+    MISMATCH_VOLUME,
     OFFSET_Y,
+    VICTORY_VOLUME,
     build_soft_error_wav,
     build_victory_wav,
     centered_flip_button_y,
@@ -120,3 +122,8 @@ def test_victory_fanfare_is_valid_and_longer_than_error_cue():
     assert victory[:4] == b'RIFF'
     assert victory[8:12] == b'WAVE'
     assert len(victory) > len(mismatch) * 5
+
+
+def test_v017_victory_fanfare_is_quieter_than_mismatch_feedback():
+    assert VICTORY_VOLUME == 0.06
+    assert VICTORY_VOLUME < MISMATCH_VOLUME
