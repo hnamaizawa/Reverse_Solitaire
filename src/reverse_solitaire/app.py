@@ -23,7 +23,7 @@ PILE_GAP = 14
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.4")
+        self.title("Reverse Solitaire v0.1.5")
         self.geometry("1280x760")
         self.minsize(1080, 650)
         self.configure(bg="#0b5d35")
@@ -108,8 +108,6 @@ class ReverseSolitaireApp(tk.Tk):
 
         def frame(step: int):
             if step == midpoint:
-                # The cards keep their screen positions. The model only toggles
-                # face states and switches which end of the stack is exposed.
                 self.game.flip_pile(pile_index)
 
             t = step / frames
@@ -189,8 +187,6 @@ class ReverseSolitaireApp(tk.Tk):
                 y_button = base_y + CARD_H + 14
             else:
                 top_idx = self.game.top_index(i)
-                # Screen positions never change. Only depth order changes after a
-                # vertical turnover, so the newly exposed end is painted last.
                 if self.game.exposed_from_start[i]:
                     render_indices = range(len(pile) - 1, -1, -1)
                 else:
