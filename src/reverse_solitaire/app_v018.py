@@ -18,6 +18,7 @@ class ReverseSolitaireApp(BaseApp):
 
     def __init__(self):
         self._undo_snapshot: GameSnapshot | None = None
+        self.current_easy_mode = False
         super().__init__()
         self.title("Reverse Solitaire v0.1.18")
 
@@ -42,7 +43,6 @@ class ReverseSolitaireApp(BaseApp):
         ).pack(side="left", padx=4, pady=8)
         self.redraw()
 
-    # ---------- completely silent application dialogs ----------
     def _silent_dialog(
         self,
         title: str,
@@ -106,11 +106,11 @@ class ReverseSolitaireApp(BaseApp):
     def _ask_yes_no(self, title: str, message: str) -> bool:
         return self._silent_dialog(title, message, question=True)
 
-    # ---------- easy mode ----------
     def new_game(self):
         if self.animating:
             return
         easy = bool(getattr(self, "easy_mode", None) and self.easy_mode.get())
+        self.current_easy_mode = easy
         self.game = GameState.new(easy_mode=easy)
         self._undo_snapshot = None
         self.flip_angle.clear()
@@ -119,7 +119,6 @@ class ReverseSolitaireApp(BaseApp):
         self._stop_all_audio()
         self.redraw()
 
-    # ---------- one-step undo ----------
     def _remember_for_undo(self, *, clear_selection: bool = False) -> None:
         snapshot = self.game.snapshot()
         if clear_selection:
@@ -150,7 +149,6 @@ class ReverseSolitaireApp(BaseApp):
         self._remember_for_undo(clear_selection=True)
         super().animate_remove(pile_indices)
 
-    # ---------- silent replacements for every OS dialog ----------
     def give_up(self):
         if self.animating:
             return
@@ -174,7 +172,7 @@ class ReverseSolitaireApp(BaseApp):
             )
 
     def animate_finale(self) -> None:
-        """Same finale animation, but the result dialog is always application-silent."""
+        """Same finale animation, with an application-drawn silent result dialog."""
         self.animating = True
         self.finale_step = 0
         self._play_wav_async(self._victory_wav)
@@ -199,8 +197,7 @@ class ReverseSolitaireApp(BaseApp):
 
     def redraw(self):
         super().redraw()
-        easy_var = getattr(self, "easy_mode", None)
-        if easy_var is not None and easy_var.get():
+        if getattr(self, "current_easy_mode", False):
             current = self.status.get()
             if "イージー" not in current:
                 self.status.set(f"{current} / イージー")
