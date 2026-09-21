@@ -7,8 +7,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from reverse_solitaire.app import (
     FLIP_BUTTON_H,
+    FLIP_FRAME_MS,
+    FLIP_FRAMES,
     OFFSET_Y,
     build_soft_error_wav,
+    build_victory_wav,
     centered_flip_button_y,
     project_card_vertical_bounds,
 )
@@ -97,8 +100,23 @@ def test_v014_uses_compact_flip_button_height():
     assert FLIP_BUTTON_H < 30
 
 
+def test_v015_flip_animation_is_fast_and_evenly_midpointed():
+    assert FLIP_FRAMES % 2 == 0
+    assert FLIP_FRAMES == 14
+    assert FLIP_FRAME_MS == 12
+    assert FLIP_FRAMES * FLIP_FRAME_MS < 220
+
+
 def test_soft_error_sound_is_valid_wav_data():
     sound = build_soft_error_wav()
     assert sound[:4] == b'RIFF'
     assert sound[8:12] == b'WAVE'
     assert len(sound) > 100
+
+
+def test_victory_fanfare_is_valid_and_longer_than_error_cue():
+    victory = build_victory_wav()
+    mismatch = build_soft_error_wav()
+    assert victory[:4] == b'RIFF'
+    assert victory[8:12] == b'WAVE'
+    assert len(victory) > len(mismatch) * 5
