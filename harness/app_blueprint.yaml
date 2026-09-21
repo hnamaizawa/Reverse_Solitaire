@@ -1,0 +1,18 @@
+project: Reverse Solitaire
+version: 0.1.0
+
+non_negotiable_invariants:
+  - A standard 52-card deck is used.
+  - Cards are dealt into piles of 8 cards, with the final pile allowed to be smaller.
+  - Cards in each pile alternate face-up and face-down from bottom to top.
+  - Flipping a pile reverses card order and toggles every card face state.
+  - Only the top card of a pile can be selected.
+  - A selectable top card must be face-up.
+  - Two top cards may be removed only when their ranks match; suits do not need to match.
+  - The game is won only when all cards have been removed.
+  - The player may give up at any time before winning.
+
+change_policy:
+  - Preserve these invariants unless the user explicitly changes the game rules.
+  - Keep game-rule logic in src/reverse_solitaire/model.py testable independently from the GUI.
+  - Run check_harness.cmd (or python -m pytest tests) after source changes.
