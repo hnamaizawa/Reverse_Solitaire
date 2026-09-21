@@ -87,7 +87,7 @@ def build_soft_error_wav(
 
 def build_victory_wav(
     *,
-    volume: float = 0.16,
+    volume: float = 0.13,
     sample_rate: int = 22050,
 ) -> bytes:
     """Build a short ascending victory fanfare without external sound files."""
@@ -108,7 +108,6 @@ def build_victory_wav(
             attack = min(1.0, i / max(1, int(sample_rate * 0.012)))
             release = max(0.0, 1.0 - i / frame_count)
             envelope = attack * (release ** 0.45)
-            # A quiet second harmonic adds a slightly brighter, celebratory tone.
             tone = math.sin(2.0 * math.pi * frequency * t)
             tone += 0.24 * math.sin(4.0 * math.pi * frequency * t)
             accent = 1.08 if note_index >= len(notes) - 2 else 1.0
@@ -149,6 +148,7 @@ class ReverseSolitaireApp(tk.Tk):
         toolbar.pack(fill="x")
         tk.Button(toolbar, text="新しいゲーム", command=self.new_game).pack(side="left", padx=8, pady=8)
         tk.Button(toolbar, text="ギブアップ", command=self.give_up).pack(side="left", padx=4, pady=8)
+        tk.Button(toolbar, text="ヒント", command=self.show_hint).pack(side="left", padx=4, pady=8)
         tk.Checkbutton(
             toolbar,
             text="消音",
@@ -172,6 +172,7 @@ class ReverseSolitaireApp(tk.Tk):
             self,
             text=(
                 "一番上のカードを2枚クリック。同じ数字なら自動で消えます。"
+                "［ヒント］で現在削除できるペアがあるか確認できます。"
                 "［ひっくり返す ↓/↑］は反転前後の中央に固定されています。"
             ),
             fg="white",
@@ -203,6 +204,17 @@ class ReverseSolitaireApp(tk.Tk):
         if messagebox.askyesno("ギブアップ", "このゲームを終了しますか？"):
             self.game.give_up()
             self.redraw()
+
+    def show_hint(self) -> None:
+        if self.animating:
+            return
+        if self.game.finished:
+            messagebox.showinfo("ヒント", "ゲームは終了しています。")
+            return
+        if self.game.available_matches():
+            messagebox.showinfo("ヒント", "現在、削除できるペアがあります。")
+        else:
+            messagebox.showinfo("ヒント", "現在、削除できるペアはありません。\nカードをひっくり返して探してみてください。")
 
     def _play_wav_async(self, sound: bytes) -> None:
         if self.muted.get() or winsound is None:
@@ -259,7 +271,6 @@ class ReverseSolitaireApp(tk.Tk):
 
         def frame(step: int):
             t = step / FLIP_FRAMES
-            # Smoothstep gives a quick launch and crisp landing without looking jerky.
             eased = t * t * (3.0 - 2.0 * t)
             angle = start_angle + (end_angle - start_angle) * eased
             self.flip_angle[pile_index] = angle
