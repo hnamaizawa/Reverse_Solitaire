@@ -7,11 +7,11 @@ sys.path.insert(0, str(ROOT / "src"))
 from reverse_solitaire.model import GameState, build_state
 
 
-def test_new_game_contains_52_cards():
+def test_new_game_contains_52_cards_in_five_card_piles():
     game = GameState.new(seed=1)
     assert game.remaining_cards == 52
-    assert len(game.piles) == 7
-    assert [len(p) for p in game.piles] == [8, 8, 8, 8, 8, 8, 4]
+    assert len(game.piles) == 11
+    assert [len(p) for p in game.piles] == [5] * 10 + [2]
 
 
 def test_cards_alternate_face_direction_in_each_pile():
@@ -21,16 +21,21 @@ def test_cards_alternate_face_direction_in_each_pile():
             assert pc.face_up == (i % 2 == 0)
 
 
-def test_flip_keeps_card_positions_and_toggles_visibility():
+def test_flip_reverses_order_and_toggles_visibility():
     game = build_state([[('A', '♠', True), ('2', '♠', False), ('3', '♠', True)]])
-    before = [pc.card.rank for pc in game.piles[0]]
-    before_faces = [pc.face_up for pc in game.piles[0]]
     game.flip_pile(0)
-    assert [pc.card.rank for pc in game.piles[0]] == before
-    assert [pc.face_up for pc in game.piles[0]] == [not x for x in before_faces]
+    assert [pc.card.rank for pc in game.piles[0]] == ['3', '2', 'A']
+    assert [pc.face_up for pc in game.piles[0]] == [False, True, False]
 
 
-def test_flip_twice_restores_original_state_without_moving_cards():
+def test_flip_makes_previous_bottom_the_new_top():
+    game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
+    assert game.top_card(0).card.rank == 'K'
+    game.flip_pile(0)
+    assert game.top_card(0).card.rank == 'A'
+
+
+def test_flip_twice_restores_original_state():
     game = build_state([[('A', '♠', True), ('2', '♥', False), ('K', '♦', True)]])
     before = [(pc.card.rank, pc.card.suit, pc.face_up) for pc in game.piles[0]]
     game.flip_pile(0)
@@ -39,19 +44,18 @@ def test_flip_twice_restores_original_state_without_moving_cards():
     assert after == before
 
 
-def test_only_face_up_top_cards_can_be_selected():
+def test_hidden_top_card_can_be_selected_by_memory():
     game = build_state([
         [('A', '♠', True), ('K', '♠', False)],
         [('Q', '♥', True)],
     ])
-    assert game.toggle_select(0) is False
-    assert game.toggle_select(1) is True
-    assert game.selected == [1]
+    assert game.toggle_select(0) is True
+    assert game.selected == [0]
 
 
-def test_matching_top_ranks_can_be_removed():
+def test_matching_top_ranks_can_be_removed_even_when_hidden():
     game = build_state([
-        [('2', '♠', True), ('K', '♠', True)],
+        [('2', '♠', True), ('K', '♠', False)],
         [('3', '♥', False), ('K', '♥', True)],
     ])
     game.toggle_select(0)
@@ -73,10 +77,21 @@ def test_different_ranks_cannot_be_removed():
     assert game.remaining_cards == 2
 
 
+def test_clear_selection_after_mismatch():
+    game = build_state([
+        [('K', '♠', True)],
+        [('Q', '♥', True)],
+    ])
+    game.toggle_select(0)
+    game.toggle_select(1)
+    game.clear_selection()
+    assert game.selected == []
+
+
 def test_win_when_all_cards_removed():
     game = build_state([
         [('A', '♠', True)],
-        [('A', '♥', True)],
+        [('A', '♥', False)],
     ])
     game.toggle_select(0)
     game.toggle_select(1)
