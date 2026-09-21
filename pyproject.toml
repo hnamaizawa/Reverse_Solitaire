@@ -1,8 +1,11 @@
 [project]
 name = "reverse-solitaire"
-version = "0.1.15"
+version = "0.1.16"
 description = "Memory-based reverse solitaire card game prototype"
 requires-python = ">=3.10"
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6,<7"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

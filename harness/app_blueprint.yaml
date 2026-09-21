@@ -1,5 +1,5 @@
 project: Reverse Solitaire
-version: 0.1.15
+version: 0.1.16
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
@@ -28,6 +28,8 @@ non_negotiable_invariants:
   - The user-visible mute toggle must suppress both mismatch audio and finale audio.
   - The hint control may report only whether at least one currently removable top-card rank pair exists; it must not reveal which piles form the pair.
   - Hint detection must consider the current visual top card of every non-empty pile, including a face-down top card that is selectable by memory.
+  - A Windows standalone build must be producible as one GUI executable named ReverseSolitaire.exe.
+  - The standalone executable must not require Python, source files, WAV files, or other application files to be copied beside it on the destination Windows PC.
   - The flip direction alternates down then up according to the packet's current physical side.
   - At approximately 90 degrees the packet becomes edge-on at the hinge; order/face-state changes should occur at that visually hidden midpoint.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
@@ -41,3 +43,4 @@ change_policy:
   - Preserve these invariants unless the user explicitly changes the game rules.
   - Keep game-rule logic in src/reverse_solitaire/model.py testable independently from the GUI.
   - Run check_harness.cmd (or python -m pytest tests) after source changes.
+  - For release builds, run build_exe.cmd and smoke-test dist/ReverseSolitaire.exe on Windows.
