@@ -1,5 +1,5 @@
 project: Reverse Solitaire
-version: 0.1.13
+version: 0.1.14
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
@@ -15,8 +15,11 @@ non_negotiable_invariants:
   - A second flip reverses order and toggles all faces again, restoring the previous order and face states (except for cards already removed).
   - The visually first card is the removal-target card.
   - Face-up cards must show rank/suit at both the upper-left and lower-right so overlapped cards remain identifiable from the exposed lower edge.
+  - Card overlap spacing must leave enough of the lower edge exposed to distinguish adjacent ranks such as 8 and 9.
+  - The lower-right rank/suit marking must be inset enough to avoid being obscured by the centered flip control.
   - The flip control for each pile must stay at the same position for upward and downward turnovers of that pile.
   - The flip control should be centered on the turnover hinge, midway between the pile's upper-side and lower-side resting positions, so the packet crosses the control row during the animation.
+  - The flip control height must remain compact enough to minimize overlap with card markings while remaining clickable.
   - Mismatch feedback must use a restrained short sound, provide a user-visible mute toggle, and remain less prominent than normal interaction sounds.
   - The flip direction alternates down then up according to the packet's current physical side.
   - At approximately 90 degrees the packet becomes edge-on at the hinge; order/face-state changes should occur at that visually hidden midpoint.
