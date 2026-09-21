@@ -6,6 +6,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from reverse_solitaire.app import (
+    FLIP_BUTTON_H,
+    OFFSET_Y,
     build_soft_error_wav,
     centered_flip_button_y,
     project_card_vertical_bounds,
@@ -54,7 +56,7 @@ def test_upward_domino_flip_returns_card_slot_to_original_position():
 
 def test_four_card_packet_uses_same_slots_while_identities_reverse_at_midpoint():
     base_y = 60.0
-    offset_y = 40.0
+    offset_y = OFFSET_Y
     card_h = 118.0
     count = 4
     hinge_y = base_y + (count - 1) * offset_y + card_h
@@ -74,9 +76,8 @@ def test_four_card_packet_uses_same_slots_while_identities_reverse_at_midpoint()
 
 def test_flip_button_is_centered_on_turnover_hinge():
     hinge_y = 378.0
-    button_y = centered_flip_button_y(hinge_y, 30.0)
-    assert button_y == 363.0
-    assert button_y + 15.0 == hinge_y
+    button_y = centered_flip_button_y(hinge_y, FLIP_BUTTON_H)
+    assert button_y + FLIP_BUTTON_H / 2.0 == hinge_y
 
 
 def test_flip_button_position_is_same_for_up_and_down_of_same_pile():
@@ -84,6 +85,16 @@ def test_flip_button_position_is_same_for_up_and_down_of_same_pile():
     before_flip_y = centered_flip_button_y(hinge_y)
     after_flip_y = centered_flip_button_y(hinge_y)
     assert before_flip_y == after_flip_y
+
+
+def test_v014_uses_wider_card_spacing_for_rank_readability():
+    assert OFFSET_Y == 48
+    assert OFFSET_Y > 40
+
+
+def test_v014_uses_compact_flip_button_height():
+    assert FLIP_BUTTON_H == 22
+    assert FLIP_BUTTON_H < 30
 
 
 def test_soft_error_sound_is_valid_wav_data():

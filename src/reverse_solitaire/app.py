@@ -22,11 +22,11 @@ else:
 
 CARD_W = 82
 CARD_H = 118
-OFFSET_Y = 40
+OFFSET_Y = 48
 MARGIN_X = 16
 MARGIN_Y = 60
 PILE_GAP = 20
-FLIP_BUTTON_H = 30
+FLIP_BUTTON_H = 22
 
 
 def project_card_vertical_bounds(
@@ -89,7 +89,7 @@ def build_soft_error_wav(
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.13")
+        self.title("Reverse Solitaire v0.1.14")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -355,7 +355,7 @@ class ReverseSolitaireApp(tk.Tk):
             )
             self.canvas.create_text(
                 x2 - 7,
-                y2 - 6,
+                y2 - 14,
                 text=pc.card.label,
                 anchor="se",
                 font=("Arial", 14, "bold"),
@@ -497,7 +497,7 @@ class ReverseSolitaireApp(tk.Tk):
                 y_button,
                 base_x + CARD_W,
                 y_button + FLIP_BUTTON_H,
-                6,
+                5,
                 fill="#f7f7f4",
                 outline="#1f1f1f",
                 width=1,
@@ -507,7 +507,7 @@ class ReverseSolitaireApp(tk.Tk):
                 base_x + CARD_W / 2,
                 y_button + FLIP_BUTTON_H / 2,
                 text=f"ひっくり返す {direction}",
-                font=("Yu Gothic UI", 9, "bold"),
+                font=("Yu Gothic UI", 8, "bold"),
                 fill="#202020",
                 tags=(new_tag,),
             )
