@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from reverse_solitaire.app import (
     build_soft_error_wav,
-    fixed_flip_button_y,
+    centered_flip_button_y,
     project_card_vertical_bounds,
 )
 
@@ -53,7 +53,6 @@ def test_upward_domino_flip_returns_card_slot_to_original_position():
 
 
 def test_four_card_packet_uses_same_slots_while_identities_reverse_at_midpoint():
-    """Geometry keeps slots stable; model reversal swaps which card occupies them."""
     base_y = 60.0
     offset_y = 40.0
     card_h = 118.0
@@ -73,15 +72,18 @@ def test_four_card_packet_uses_same_slots_while_identities_reverse_at_midpoint()
     assert after_model_flip == ['hidden-2', '9♥', 'hidden-1', 'A♣']
 
 
-def test_flip_button_row_is_independent_of_packet_direction():
-    canvas_height = 800.0
-    before_flip_y = fixed_flip_button_y(canvas_height)
-    after_flip_y = fixed_flip_button_y(canvas_height)
+def test_flip_button_is_centered_on_turnover_hinge():
+    hinge_y = 378.0
+    button_y = centered_flip_button_y(hinge_y, 30.0)
+    assert button_y == 363.0
+    assert button_y + 15.0 == hinge_y
+
+
+def test_flip_button_position_is_same_for_up_and_down_of_same_pile():
+    hinge_y = 298.0
+    before_flip_y = centered_flip_button_y(hinge_y)
+    after_flip_y = centered_flip_button_y(hinge_y)
     assert before_flip_y == after_flip_y
-
-
-def test_flip_button_row_stays_inside_small_canvas():
-    assert fixed_flip_button_y(600.0) == 536.0
 
 
 def test_soft_error_sound_is_valid_wav_data():
