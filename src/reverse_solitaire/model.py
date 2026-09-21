@@ -29,11 +29,11 @@ class GameState:
 
     def __init__(self, piles: list[list[PileCard]]):
         self.piles = piles
-        # False: list[-1] is physically exposed/selectable on the upper side.
-        # True: list[0] is physically exposed/selectable after the packet has
-        # been turned over to the lower side. The previous top is never forced
-        # to stay top; a physical turnover exposes the opposite end.
-        self.exposed_from_start = [False for _ in piles]
+        # Each pile physically alternates between the upper side (False) and
+        # lower side (True) of its hinge. Card identity/order in the Python list
+        # stays stable; the GUI's 180-degree projection naturally reverses the
+        # visible top-to-bottom order after a turnover.
+        self.flipped = [False for _ in piles]
         self.selected: list[int] = []
         self.given_up = False
         self.moves = 0
@@ -69,36 +69,44 @@ class GameState:
         pile = self.piles[pile_index]
         if not pile:
             return None
-        return 0 if self.exposed_from_start[pile_index] else len(pile) - 1
+        # The physically uppermost card after the 180-degree turnover is still
+        # the card at the packet's free end (list[-1]); its screen position is
+        # what moves through the hinge. We do not force the previous visual top
+        # to remain top by switching to the opposite list end.
+        return len(pile) - 1
 
     def top_card(self, pile_index: int) -> PileCard | None:
         idx = self.top_index(pile_index)
         return None if idx is None else self.piles[pile_index][idx]
 
     def flip_pile(self, pile_index: int) -> None:
-        """Turn a pile physically to the opposite side of its hinge.
+        """Turn a pile physically 180 degrees around its horizontal hinge.
 
-        Stored order stays stable for rule tracking. The opposite end becomes
-        exposed, every card changes face state, and the newly exposed card is
-        made face-up. The GUI performs the matching 180-degree spatial rotation
-        down through the hinge, then back up on the next flip.
+        The GUI performs the real spatial turnover, so the visible vertical order
+        reverses naturally: the old bottom of the displayed packet becomes the
+        new top, the next card becomes second, and so on. We therefore do not
+        switch the selectable end to preserve an old logical top.
+
+        After the turnover all card faces in the packet are visible. This matches
+        the physical reference supplied for the game: cards that were backs in
+        the overlapped packet reveal their rank/suit after the turnover, while
+        cards that were already showing a face remain readable.
         """
         if self.finished:
             return
         pile = self.piles[pile_index]
         if not pile:
             return
+
+        self.flipped[pile_index] = not self.flipped[pile_index]
         for pc in pile:
-            pc.face_up = not pc.face_up
-        self.exposed_from_start[pile_index] = not self.exposed_from_start[pile_index]
-        exposed = self.top_card(pile_index)
-        if exposed is not None:
-            exposed.face_up = True
+            pc.face_up = True
+
         self.selected.clear()
         self.moves += 1
 
     def toggle_select(self, pile_index: int) -> bool:
-        """Select the exposed top card. Hidden cards remain selectable by memory."""
+        """Select the physically exposed top card."""
         if self.finished:
             return False
         top = self.top_card(pile_index)
@@ -157,7 +165,7 @@ class GameState:
 
 
 def build_state(piles: Iterable[Iterable[tuple[str, str, bool]]]) -> GameState:
-    """Small test helper: iterable of (rank, suit, face_up), stored top-to-bottom order."""
+    """Small test helper: iterable of (rank, suit, face_up), hinge -> free-end order."""
     return GameState([
         [PileCard(Card(rank, suit), face_up) for rank, suit, face_up in pile]
         for pile in piles
