@@ -73,13 +73,13 @@ class GameState:
         return None if idx is None else self.piles[pile_index][idx]
 
     def flip_pile(self, pile_index: int) -> None:
-        """Physically turn the packet over, reversing its visible order.
+        """Physically turn the packet over.
 
-        Every turnover reverses the visual top-to-bottom order. When turning
-        downward, all cards are made face-up so rank/suit information is always
-        readable. When turning upward again, the alternating face-up/face-down
-        pattern is restored for the current packet, preserving the memory-game
-        element on the upper side.
+        Every turnover reverses the visual top-to-bottom order and flips every
+        individual card face. Therefore a card whose rank/suit was visible shows
+        its back after the turnover, while a card that showed its back reveals
+        its rank/suit. With the normal alternating deal, the old bottom card is
+        hidden before a downward flip, so it becomes the new visible top card.
         """
         if self.finished:
             return
@@ -87,22 +87,16 @@ class GameState:
         if not pile:
             return
 
-        turning_down = not self.flipped[pile_index]
         pile.reverse()
-        self.flipped[pile_index] = turning_down
-
-        if turning_down:
-            for pc in pile:
-                pc.face_up = True
-        else:
-            for i, pc in enumerate(pile):
-                pc.face_up = (i % 2 == 0)
+        for pc in pile:
+            pc.face_up = not pc.face_up
+        self.flipped[pile_index] = not self.flipped[pile_index]
 
         self.selected.clear()
         self.moves += 1
 
     def toggle_select(self, pile_index: int) -> bool:
-        """Select the visually uppermost card; it may be hidden on the upper side."""
+        """Select the visually uppermost card; it may be hidden by memory."""
         if self.finished:
             return False
         top = self.top_card(pile_index)
