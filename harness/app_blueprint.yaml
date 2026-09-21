@@ -1,12 +1,15 @@
 project: Reverse Solitaire
-version: 0.1.18
+version: 0.1.19
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
   - Cards are dealt into piles of 6 cards, with the final pile allowed to be smaller.
   - With 52 cards the normal deal is 8 piles of 6 cards plus a final pile of 4 cards.
   - Cards in each pile initially alternate face-up and face-down.
-  - Easy mode must deal the same 52-card deck and pile sizes while preventing duplicate ranks inside any one pile.
+  - Easy mode must use the same 52-card deck and normal pile sizes.
+  - In easy mode, no pile may contain two cards of the same rank; therefore no same-rank pair exists inside a pile.
+  - In standard mode, any one pile may contain at most one duplicated-rank pair; triples and two different duplicated-rank pairs in the same pile are forbidden.
+  - In standard mode, if a duplicated-rank pair exists in a pile, at least two other cards must lie between the two equal-rank cards (index distance at least 3).
   - Flipping a pile is a physical top-to-bottom turnover around a horizontal hinge, not an in-place mirror or squash/re-expand effect.
   - A downward flip must move the whole packet to the lower side of the hinge; the next upward flip must move it back to the upper side.
   - Every flip reverses the cards' visual top-to-bottom order.

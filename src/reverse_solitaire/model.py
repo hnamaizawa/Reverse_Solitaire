@@ -51,7 +51,7 @@ class GameState:
 
     @classmethod
     def _deal_easy(cls, rng: random.Random, pile_size: int) -> list[list[Card]]:
-        """Deal so that no pile contains the same rank more than once."""
+        """Deal so that a pile never contains two cards of the same rank."""
         deck_size = len(SUITS) * len(RANKS)
         capacities = cls._pile_capacities(deck_size, pile_size)
         if max(capacities, default=0) > len(RANKS):
@@ -75,7 +75,6 @@ class GameState:
                     failed = True
                     break
 
-                # Prefer piles with more free slots; random tie-breaking preserves variety.
                 rng.shuffle(candidates)
                 candidates.sort(key=lambda i: capacities[i] - len(piles[i]), reverse=True)
                 chosen = candidates[:len(suits)]
@@ -92,6 +91,69 @@ class GameState:
         raise RuntimeError("could not create an easy-mode deal")
 
     @classmethod
+    def _deal_standard(cls, rng: random.Random, pile_size: int) -> list[list[Card]]:
+        """Deal standard mode with at most one well-separated pair per pile.
+
+        Each pile may contain at most one duplicated rank. If a duplicated rank
+        exists, the equal-rank cards must have at least two other cards between
+        them (position difference of at least three). Triples and two different
+        pairs in the same pile are not allowed.
+        """
+        deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
+        capacities = cls._pile_capacities(len(deck), pile_size)
+        if max(capacities, default=0) > len(RANKS) + 1:
+            raise ValueError("standard constrained deal requires pile_size <= number of ranks + 1")
+
+        for _attempt in range(5000):
+            remaining = list(deck)
+            rng.shuffle(remaining)
+            piles: list[list[Card]] = []
+            failed = False
+
+            for capacity in capacities:
+                pile: list[Card] = []
+                rank_positions: dict[str, list[int]] = {}
+                duplicated_rank: str | None = None
+
+                for position in range(capacity):
+                    allowed_indices: list[int] = []
+                    for index, card in enumerate(remaining):
+                        positions = rank_positions.get(card.rank, [])
+                        if not positions:
+                            allowed_indices.append(index)
+                            continue
+
+                        if len(positions) >= 2:
+                            continue
+                        if duplicated_rank is not None and duplicated_rank != card.rank:
+                            continue
+                        if position - positions[0] < 3:
+                            continue
+
+                        allowed_indices.append(index)
+
+                    if not allowed_indices:
+                        failed = True
+                        break
+
+                    chosen_index = rng.choice(allowed_indices)
+                    card = remaining.pop(chosen_index)
+                    positions = rank_positions.setdefault(card.rank, [])
+                    if positions:
+                        duplicated_rank = card.rank
+                    positions.append(position)
+                    pile.append(card)
+
+                if failed:
+                    break
+                piles.append(pile)
+
+            if not failed and not remaining and [len(p) for p in piles] == capacities:
+                return piles
+
+        raise RuntimeError("could not create a standard deal with pair-spacing constraints")
+
+    @classmethod
     def new(
         cls,
         *,
@@ -106,9 +168,7 @@ class GameState:
         if easy_mode:
             card_piles = cls._deal_easy(rng, pile_size)
         else:
-            deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
-            rng.shuffle(deck)
-            card_piles = [deck[start:start + pile_size] for start in range(0, len(deck), pile_size)]
+            card_piles = cls._deal_standard(rng, pile_size)
 
         piles = [
             [PileCard(card=card, face_up=(i % 2 == 0)) for i, card in enumerate(chunk)]
