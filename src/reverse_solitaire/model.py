@@ -31,7 +31,7 @@ class GameState:
         self.piles = piles
         # False: packet is on the upper side of its hinge.
         # True: packet is on the lower side after a downward turnover.
-        # Card order itself is visual top-to-bottom and never changes on flip.
+        # The list always represents the current visual top-to-bottom order.
         self.flipped = [False for _ in piles]
         self.selected: list[int] = []
         self.given_up = False
@@ -66,23 +66,20 @@ class GameState:
 
     def top_index(self, pile_index: int) -> int | None:
         pile = self.piles[pile_index]
-        if not pile:
-            return None
-        # The first card is always the visually uppermost/removal-target card.
-        # Flipping moves the packet above/below the hinge but does not reorder it.
-        return 0
+        return None if not pile else 0
 
     def top_card(self, pile_index: int) -> PileCard | None:
         idx = self.top_index(pile_index)
         return None if idx is None else self.piles[pile_index][idx]
 
     def flip_pile(self, pile_index: int) -> None:
-        """Turn a packet over while preserving its visual top-to-bottom order.
+        """Physically turn the packet over, reversing its visible order.
 
-        The packet moves physically to the opposite side of its horizontal hinge,
-        but card positions within the fan remain in the same order. Every card
-        changes face state: a rank/suit that was visible becomes a card back, and
-        a card back becomes a readable rank/suit.
+        Every turnover reverses the visual top-to-bottom order. When turning
+        downward, all cards are made face-up so rank/suit information is always
+        readable. When turning upward again, the alternating face-up/face-down
+        pattern is restored for the current packet, preserving the memory-game
+        element on the upper side.
         """
         if self.finished:
             return
@@ -90,15 +87,22 @@ class GameState:
         if not pile:
             return
 
-        self.flipped[pile_index] = not self.flipped[pile_index]
-        for pc in pile:
-            pc.face_up = not pc.face_up
+        turning_down = not self.flipped[pile_index]
+        pile.reverse()
+        self.flipped[pile_index] = turning_down
+
+        if turning_down:
+            for pc in pile:
+                pc.face_up = True
+        else:
+            for i, pc in enumerate(pile):
+                pc.face_up = (i % 2 == 0)
 
         self.selected.clear()
         self.moves += 1
 
     def toggle_select(self, pile_index: int) -> bool:
-        """Select the visually uppermost card; it may be face-down by memory."""
+        """Select the visually uppermost card; it may be hidden on the upper side."""
         if self.finished:
             return False
         top = self.top_card(pile_index)
