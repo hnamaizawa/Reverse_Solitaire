@@ -1,5 +1,5 @@
 project: Reverse Solitaire
-version: 0.1.16
+version: 0.1.17
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
@@ -21,11 +21,13 @@ non_negotiable_invariants:
   - The flip control should be centered on the turnover hinge, midway between the pile's upper-side and lower-side resting positions, so the packet crosses the control row during the animation.
   - The flip control height must remain compact enough to minimize overlap with card markings while remaining clickable.
   - The turnover animation should feel quick and rhythmic; its nominal duration should stay under 220 ms while preserving the midpoint order/face transition.
-  - Mismatch feedback must use a restrained short sound, provide a user-visible mute toggle, and remain less prominent than normal interaction sounds.
+  - Mismatch feedback must use a restrained short sound and remain less prominent than normal interaction sounds.
   - Clearing all cards must trigger a visible finale before the final result dialog.
   - The finale must include a short celebratory fanfare generated without requiring an external audio asset.
-  - Finale audio should remain celebratory but modest in volume so it does not overwhelm the visual finish.
-  - The user-visible mute toggle must suppress both mismatch audio and finale audio.
+  - Finale audio must stay quieter than mismatch feedback so it does not overwhelm the visual finish.
+  - The user-visible mute toggle is a master audio switch: while enabled, no BGM or sound effect may start.
+  - Enabling mute while audio is already playing must stop that audio immediately.
+  - All present and future game audio must pass through the same master-mute gate.
   - The hint control may report only whether at least one currently removable top-card rank pair exists; it must not reveal which piles form the pair.
   - Hint detection must consider the current visual top card of every non-empty pile, including a face-down top card that is selectable by memory.
   - A Windows standalone build must be producible as one GUI executable named ReverseSolitaire.exe.
