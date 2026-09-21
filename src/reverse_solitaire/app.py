@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 import struct
 import sys
+import threading
 import tkinter as tk
 from tkinter import messagebox
 import wave
@@ -27,6 +28,10 @@ MARGIN_X = 16
 MARGIN_Y = 60
 PILE_GAP = 20
 FLIP_BUTTON_H = 22
+FLIP_FRAMES = 14
+FLIP_FRAME_MS = 12
+FINALE_FRAMES = 28
+FINALE_FRAME_MS = 34
 
 
 def project_card_vertical_bounds(
@@ -50,13 +55,7 @@ def project_card_vertical_bounds(
 
 
 def centered_flip_button_y(hinge_y: float, button_height: float = FLIP_BUTTON_H) -> float:
-    """Place the flip control at the midpoint crossed by the packet.
-
-    The packet is above the hinge before a downward turnover and below it after
-    the turnover. Centering the control on the hinge puts it halfway between the
-    two resting positions and keeps it at exactly the same place for up/down
-    repeats of the same pile.
-    """
+    """Place the flip control at the midpoint crossed by the packet."""
     return hinge_y - button_height / 2.0
 
 
@@ -86,10 +85,51 @@ def build_soft_error_wav(
     return buffer.getvalue()
 
 
+def build_victory_wav(
+    *,
+    volume: float = 0.16,
+    sample_rate: int = 22050,
+) -> bytes:
+    """Build a short ascending victory fanfare without external sound files."""
+    notes = [
+        (523.25, 0.14),  # C5
+        (659.25, 0.14),  # E5
+        (783.99, 0.16),  # G5
+        (1046.50, 0.20), # C6
+        (1318.51, 0.34), # E6
+    ]
+    gap = 0.018
+    pcm = bytearray()
+
+    for note_index, (frequency, duration) in enumerate(notes):
+        frame_count = max(1, int(sample_rate * duration))
+        for i in range(frame_count):
+            t = i / sample_rate
+            attack = min(1.0, i / max(1, int(sample_rate * 0.012)))
+            release = max(0.0, 1.0 - i / frame_count)
+            envelope = attack * (release ** 0.45)
+            # A quiet second harmonic adds a slightly brighter, celebratory tone.
+            tone = math.sin(2.0 * math.pi * frequency * t)
+            tone += 0.24 * math.sin(4.0 * math.pi * frequency * t)
+            accent = 1.08 if note_index >= len(notes) - 2 else 1.0
+            sample = int(32767 * volume * accent * envelope * tone / 1.24)
+            sample = max(-32767, min(32767, sample))
+            pcm.extend(struct.pack("<h", sample))
+        pcm.extend(b"\x00\x00" * int(sample_rate * gap))
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(bytes(pcm))
+    return buffer.getvalue()
+
+
 class ReverseSolitaireApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Reverse Solitaire v0.1.14")
+        self.title("Reverse Solitaire v0.1.15")
         self.geometry("1280x900")
         self.minsize(1080, 780)
         self.configure(bg="#0b5d35")
@@ -99,8 +139,10 @@ class ReverseSolitaireApp(tk.Tk):
         self.animating = False
         self.muted = tk.BooleanVar(value=False)
         self._mismatch_wav = build_soft_error_wav()
+        self._victory_wav = build_victory_wav()
         self.flip_angle: dict[int, float] = {}
         self.remove_scale: dict[int, float] = {}
+        self.finale_step: int | None = None
         self.frame_slot = 0
 
         toolbar = tk.Frame(self, bg="#123c2a")
@@ -151,6 +193,8 @@ class ReverseSolitaireApp(tk.Tk):
             return
         self.game = GameState.new()
         self.flip_angle.clear()
+        self.remove_scale.clear()
+        self.finale_step = None
         self.redraw()
 
     def give_up(self):
@@ -160,13 +204,20 @@ class ReverseSolitaireApp(tk.Tk):
             self.game.give_up()
             self.redraw()
 
-    def _play_mismatch_sound(self) -> None:
+    def _play_wav_async(self, sound: bytes) -> None:
         if self.muted.get() or winsound is None:
             return
-        try:
-            winsound.PlaySound(self._mismatch_wav, winsound.SND_MEMORY)
-        except RuntimeError:
-            pass
+
+        def play() -> None:
+            try:
+                winsound.PlaySound(sound, winsound.SND_MEMORY)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=play, daemon=True).start()
+
+    def _play_mismatch_sound(self) -> None:
+        self._play_wav_async(self._mismatch_wav)
 
     def on_canvas_click(self, event):
         if self.game.finished or self.animating:
@@ -201,15 +252,15 @@ class ReverseSolitaireApp(tk.Tk):
             return
 
         self.animating = True
-        frames = 22
-        midpoint = frames // 2
+        midpoint = FLIP_FRAMES // 2
         flipping_down = not self.game.flipped[pile_index]
         start_angle = 0.0 if flipping_down else math.pi
         end_angle = math.pi if flipping_down else 0.0
 
         def frame(step: int):
-            t = step / frames
-            eased = 0.5 - 0.5 * math.cos(math.pi * t)
+            t = step / FLIP_FRAMES
+            # Smoothstep gives a quick launch and crisp landing without looking jerky.
+            eased = t * t * (3.0 - 2.0 * t)
             angle = start_angle + (end_angle - start_angle) * eased
             self.flip_angle[pile_index] = angle
 
@@ -218,8 +269,8 @@ class ReverseSolitaireApp(tk.Tk):
 
             self.redraw()
 
-            if step < frames:
-                self.after(20, lambda: frame(step + 1))
+            if step < FLIP_FRAMES:
+                self.after(FLIP_FRAME_MS, lambda: frame(step + 1))
             else:
                 self.flip_angle.pop(pile_index, None)
                 self.animating = False
@@ -244,7 +295,31 @@ class ReverseSolitaireApp(tk.Tk):
                 self.animating = False
                 self.redraw()
                 if self.game.won:
-                    messagebox.showinfo("ゲームクリア", f"全てのカードを取り除きました！\n手数: {self.game.moves}")
+                    self.animate_finale()
+
+        frame(0)
+
+    def animate_finale(self) -> None:
+        """Celebrate a completed game before showing the final result dialog."""
+        self.animating = True
+        self.finale_step = 0
+        self._play_wav_async(self._victory_wav)
+
+        def frame(step: int) -> None:
+            self.finale_step = step
+            self.redraw()
+            if step < FINALE_FRAMES:
+                self.after(FINALE_FRAME_MS, lambda: frame(step + 1))
+            else:
+                self.animating = False
+                self.redraw()
+                self.after(
+                    120,
+                    lambda: messagebox.showinfo(
+                        "ゲームクリア",
+                        f"全てのカードを取り除きました！\n手数: {self.game.moves}",
+                    ),
+                )
 
         frame(0)
 
@@ -424,12 +499,65 @@ class ReverseSolitaireApp(tk.Tk):
                 )
                 yy += step
 
+    def _draw_finale(self, width: float, height: float, tag: str) -> None:
+        if self.finale_step is None:
+            return
+
+        progress = min(1.0, self.finale_step / max(1, FINALE_FRAMES))
+        cx = width / 2.0
+        cy = min(255.0, height * 0.36)
+        pulse = 1.0 + 0.08 * math.sin(progress * math.pi * 7.0)
+
+        self.canvas.create_oval(
+            cx - 170 * pulse,
+            cy - 58 * pulse,
+            cx + 170 * pulse,
+            cy + 58 * pulse,
+            fill="#0a6d43",
+            outline="#ffd54f",
+            width=4,
+            tags=(tag,),
+        )
+        self.canvas.create_text(
+            cx,
+            cy - 8,
+            text="CLEAR!",
+            fill="#fff4b0",
+            font=("Arial", 34, "bold"),
+            tags=(tag,),
+        )
+        self.canvas.create_text(
+            cx,
+            cy + 27,
+            text=f"Congratulations  /  {self.game.moves} moves",
+            fill="white",
+            font=("Yu Gothic UI", 13, "bold"),
+            tags=(tag,),
+        )
+
+        symbols = ("♠", "♥", "♦", "♣", "★", "♣", "♦", "♥", "♠", "★")
+        for idx, symbol in enumerate(symbols):
+            angle = (idx / len(symbols)) * math.tau + progress * 0.7
+            radius = 80.0 + 235.0 * progress + (idx % 3) * 14.0
+            x = cx + math.cos(angle) * radius
+            y = cy + math.sin(angle) * radius * 0.52
+            color = "#ffd54f" if symbol == "★" else ("#ff6b78" if symbol in ("♥", "♦") else "#e8f3ff")
+            self.canvas.create_text(
+                x,
+                y,
+                text=symbol,
+                fill=color,
+                font=("Arial", 20 + (idx % 3) * 2, "bold"),
+                tags=(tag,),
+            )
+
     def redraw(self):
         new_tag, old_tag = self._frame_tags()
         self.canvas.delete(new_tag)
         self.hit_regions.clear()
 
         width = max(self.canvas.winfo_width(), 1050)
+        height = max(self.canvas.winfo_height(), 640)
         pile_count = len(self.game.piles)
         total_w = pile_count * CARD_W + max(0, pile_count - 1) * PILE_GAP
         start_x = max(MARGIN_X, (width - total_w) / 2)
@@ -487,9 +615,6 @@ class ReverseSolitaireApp(tk.Tk):
                     if is_top and not self.animating:
                         self.hit_regions.append(("top", i, (x1, yy1, x2, yy2)))
 
-            # The control is centered on the turnover hinge: the packet crosses
-            # this exact row when it flips, so repeated up/down clicks require
-            # no pointer travel toward either resting packet position.
             y_button = centered_flip_button_y(hinge_y)
             direction = "↑" if self.game.flipped[i] else "↓"
             self._rounded_rectangle(
@@ -497,7 +622,7 @@ class ReverseSolitaireApp(tk.Tk):
                 y_button,
                 base_x + CARD_W,
                 y_button + FLIP_BUTTON_H,
-                5,
+                6,
                 fill="#f7f7f4",
                 outline="#1f1f1f",
                 width=1,
@@ -507,7 +632,7 @@ class ReverseSolitaireApp(tk.Tk):
                 base_x + CARD_W / 2,
                 y_button + FLIP_BUTTON_H / 2,
                 text=f"ひっくり返す {direction}",
-                font=("Yu Gothic UI", 8, "bold"),
+                font=("Yu Gothic UI", 9, "bold"),
                 fill="#202020",
                 tags=(new_tag,),
             )
@@ -525,6 +650,8 @@ class ReverseSolitaireApp(tk.Tk):
                 font=("Yu Gothic UI", 9),
                 tags=(new_tag,),
             )
+
+        self._draw_finale(width, height, new_tag)
 
         state_text = "クリア！" if self.game.won else (
             "ギブアップ" if self.game.given_up else "記憶を頼りにペアを探してください"
