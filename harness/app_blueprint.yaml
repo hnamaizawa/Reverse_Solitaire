@@ -9,14 +9,15 @@ non_negotiable_invariants:
   - Flipping a pile is a physical top-to-bottom turnover around a horizontal hinge, not an in-place mirror or squash/re-expand effect.
   - A downward flip must move the whole packet to the lower side of the hinge; the next upward flip must move it back to the upper side.
   - Every flip reverses the cards' visual top-to-bottom order.
-  - In the four-card reference case A-club / hidden / 9-heart / hidden becomes hidden-card-2 / 9-heart / hidden-card-1 / A-club after the downward flip.
-  - While a packet is on the lower side, every card must show its rank and suit so all cards are identifiable.
-  - When the packet is flipped back upward, its order reverses back and the alternating face-up/face-down pattern is restored for the remaining packet.
+  - Every flip also toggles every individual card face state: a visible rank/suit becomes the card-back pattern, and a card-back pattern becomes a visible rank/suit.
+  - In the four-card reference case A-club face / back / 9-heart face / back becomes the old fourth card face / 9-heart back / old second card face / A-club back after the downward flip.
+  - With the normal alternating deal, the new top card after a downward flip must have its rank and suit visible so the removal target is identifiable.
+  - A second flip reverses order and toggles all faces again, restoring the previous order and face states (except for cards already removed).
   - The visually first card is the removal-target card.
   - The flip direction alternates down then up according to the packet's current physical side.
   - At approximately 90 degrees the packet becomes edge-on at the hinge; order/face-state changes should occur at that visually hidden midpoint.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
-  - An upper-side removal-target card may be face-down and selectable by memory.
+  - A removal-target card may be face-down and selectable by memory when that state occurs.
   - Two removal-target cards may be removed only when their ranks match; suits do not need to match.
   - A matching pair is removed automatically when the second card is selected.
   - The game is won only when all cards have been removed.
