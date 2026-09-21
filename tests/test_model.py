@@ -31,36 +31,42 @@ def test_downward_flip_reverses_visual_card_order():
     assert game.top_card(0).card.label == '7♦'
 
 
-def test_downward_flip_makes_every_card_readable():
+def test_downward_flip_reverses_every_card_face_state():
     game = build_state([[('A', '♣', True), ('4', '♠', False), ('9', '♥', True), ('7', '♦', False)]])
 
     game.flip_pile(0)
 
-    assert all(pc.face_up for pc in game.piles[0])
+    # Reverse order + face toggle:
+    # old 7♦ back -> new top 7♦ face
+    # old 9♥ face -> back
+    # old 4♠ back -> face
+    # old A♣ face -> back
+    assert [pc.face_up for pc in game.piles[0]] == [True, False, True, False]
 
 
-def test_user_reference_packet_is_reversed_and_visible_when_flipped_down():
+def test_user_reference_packet_is_reversed_and_faces_are_flipped():
     game = build_state([[('A', '♣', True), ('4', '♠', False), ('9', '♥', True), ('7', '♦', False)]])
 
     game.flip_pile(0)
 
     assert [pc.card.label for pc in game.piles[0]] == ['7♦', '9♥', '4♠', 'A♣']
-    assert [pc.face_up for pc in game.piles[0]] == [True, True, True, True]
+    assert [pc.face_up for pc in game.piles[0]] == [True, False, True, False]
+    assert game.top_card(0).card.label == '7♦'
+    assert game.top_card(0).face_up is True
 
 
-def test_upward_flip_reverses_order_back_and_restores_alternating_faces():
+def test_two_flips_restore_original_order_and_faces():
     game = build_state([[('A', '♣', True), ('4', '♠', False), ('9', '♥', True), ('7', '♦', False)]])
-    before_labels = [pc.card.label for pc in game.piles[0]]
+    before = [(pc.card.label, pc.face_up) for pc in game.piles[0]]
 
     game.flip_pile(0)
     game.flip_pile(0)
 
     assert game.flipped == [False]
-    assert [pc.card.label for pc in game.piles[0]] == before_labels
-    assert [pc.face_up for pc in game.piles[0]] == [True, False, True, False]
+    assert [(pc.card.label, pc.face_up) for pc in game.piles[0]] == before
 
 
-def test_hidden_top_card_can_be_selected_by_memory_on_upper_side():
+def test_hidden_top_card_can_be_selected_by_memory():
     game = build_state([
         [('A', '♠', False), ('K', '♠', True)],
         [('A', '♥', False), ('Q', '♥', True)],
@@ -84,7 +90,7 @@ def test_matching_top_ranks_can_be_removed_even_when_hidden():
     assert game.removed_pairs == 1
 
 
-def test_remove_after_downward_flip_pops_new_visual_top():
+def test_remove_after_downward_flip_pops_new_visible_top():
     game = build_state([
         [('7', '♠', True), ('A', '♠', False)],
         [('8', '♥', True), ('A', '♥', False)],
