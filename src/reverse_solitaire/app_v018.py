@@ -14,13 +14,13 @@ else:
 
 
 class ReverseSolitaireApp(BaseApp):
-    """v0.1.19 UI extensions kept separate from the stable renderer."""
+    """v0.1.20 UI extensions kept separate from the stable renderer."""
 
     def __init__(self):
         self._undo_snapshot: GameSnapshot | None = None
         self.current_easy_mode = False
         super().__init__()
-        self.title("Reverse Solitaire v0.1.19")
+        self.title("Reverse Solitaire v0.1.20")
 
         self.easy_mode = tk.BooleanVar(value=False)
         toolbar = next(
