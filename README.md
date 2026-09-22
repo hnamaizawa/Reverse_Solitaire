@@ -1,4 +1,4 @@
-# Reverse Solitaire v0.1.19
+# Reverse Solitaire v0.1.20
 
 高校生の頃に考えた「記憶 + ソリティア」型トランプゲームです。
 
@@ -74,6 +74,20 @@
 - 同時に短い上昇ファンファーレを再生します。
 - ファンファーレは誤選択音より控えめな音量です。
 - 消音中はファンファーレも鳴りません。
+
+## 最新版 `ReverseSolitaire.exe` のダウンロード
+
+v0.1.20 から、`main` に変更が反映されるたびに GitHub Actions が Windows 上で回帰テストと単体EXEビルドを実行します。成功した場合だけ `Latest Reverse Solitaire` リリースを更新します。
+
+最新版のダウンロードページ:
+
+https://github.com/hnamaizawa/Reverse_Solitaire/releases/latest
+
+`ReverseSolitaire.exe` の直接ダウンロード:
+
+https://github.com/hnamaizawa/Reverse_Solitaire/releases/download/latest/ReverseSolitaire.exe
+
+Actions の各実行結果からも `ReverseSolitaire-latest` という名前の artifact をダウンロードできます。Latest リリースは常に同じURLなので、ブックマークして利用できます。
 
 ## 1ファイルEXE版
 
