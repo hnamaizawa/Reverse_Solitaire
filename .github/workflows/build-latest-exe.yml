@@ -1,0 +1,81 @@
+name: Build Latest Windows EXE
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: latest-windows-exe
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest "pyinstaller>=6,<7"
+
+      - name: Run regression tests
+        shell: pwsh
+        run: python -m pytest tests
+
+      - name: Build single-file EXE
+        shell: cmd
+        run: build_exe.cmd
+
+      - name: Verify EXE exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/ReverseSolitaire.exe")) {
+            throw "dist/ReverseSolitaire.exe was not created."
+          }
+          Get-Item "dist/ReverseSolitaire.exe" | Format-List Name,Length,LastWriteTime
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReverseSolitaire-latest
+          path: dist/ReverseSolitaire.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Replace Latest release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete latest --yes --cleanup-tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "No previous latest release to delete."
+          }
+
+          gh release create latest "dist/ReverseSolitaire.exe" `
+            --target "${{ github.sha }}" `
+            --title "Latest Reverse Solitaire" `
+            --notes "Automatically built from main at commit ${{ github.sha }}. Download ReverseSolitaire.exe below." `
+            --latest
+
+      - name: Show stable download URL
+        shell: pwsh
+        run: |
+          Write-Host "Release page: https://github.com/${{ github.repository }}/releases/latest"
+          Write-Host "Direct download: https://github.com/${{ github.repository }}/releases/download/latest/ReverseSolitaire.exe"
