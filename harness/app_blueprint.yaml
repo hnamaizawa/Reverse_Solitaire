@@ -1,5 +1,5 @@
 project: Reverse Solitaire
-version: 0.1.19
+version: 0.1.20
 
 non_negotiable_invariants:
   - A standard 52-card deck is used.
@@ -40,6 +40,8 @@ non_negotiable_invariants:
   - Starting a new game clears the undo history.
   - A Windows standalone build must be producible as one GUI executable named ReverseSolitaire.exe.
   - The standalone executable must not require Python, source files, WAV files, or other application files to be copied beside it on the destination Windows PC.
+  - GitHub Actions must build ReverseSolitaire.exe on Windows after changes reach main, run regression tests first, and fail rather than publish when tests or the build fail.
+  - The successful main build must publish ReverseSolitaire.exe both as an Actions artifact and on a stable Latest GitHub Release so users can always reach the newest EXE from the same release page and direct-download URL.
   - The flip direction alternates down then up according to the packet's current physical side.
   - At approximately 90 degrees the packet becomes edge-on at the hinge; order/face-state changes should occur at that visually hidden midpoint.
   - Animation rendering must not expose an empty canvas between frames; build the next frame before discarding the previous one.
