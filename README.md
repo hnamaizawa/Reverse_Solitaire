@@ -77,7 +77,7 @@
 
 ## 最新版 `ReverseSolitaire.exe` のダウンロード
 
-v0.1.20 から、`main` に変更が反映されるたびに GitHub Actions が Windows 上で回帰テストと単体EXEビルドを実行します。成功した場合だけ `Latest Reverse Solitaire` リリースを更新します。
+`main` に変更が反映されるたびに GitHub Actions が Windows 上で回帰テストと単体EXEビルドを実行し、SHA-256 チェックサムを生成します。成功した場合だけ `Latest Reverse Solitaire` リリースを更新します。EXE とチェックサムファイルの両方を配布します。
 
 最新版のダウンロードページ:
 
@@ -86,6 +86,19 @@ https://github.com/hnamaizawa/Reverse_Solitaire/releases/latest
 `ReverseSolitaire.exe` の直接ダウンロード:
 
 https://github.com/hnamaizawa/Reverse_Solitaire/releases/download/latest/ReverseSolitaire.exe
+
+### SHA-256 の確認（Windows PowerShell）
+
+EXE と `ReverseSolitaire.exe.sha256` を同じフォルダーにダウンロードして、PowerShell で次を実行します。
+
+```powershell
+$expected = ((Get-Content .\ReverseSolitaire.exe.sha256 -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+$actual = (Get-FileHash .\ReverseSolitaire.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actual -ne $expected) { throw "SHA-256 mismatch: downloaded EXE may be corrupted or altered." }
+"SHA-256 OK: $actual"
+```
+
+一致しない場合は実行せず、EXE とチェックサムを再ダウンロードしてください。チェックサムはダウンロード中の破損や、配布元と異なるファイルの検出に役立ちます。GitHub アカウントやリリース自体が侵害された場合に独立した真正性を保証するものではありません。
 
 Actions の各実行結果からも `ReverseSolitaire-latest` という名前の artifact をダウンロードできます。Latest リリースは常に同じURLなので、ブックマークして利用できます。
 
