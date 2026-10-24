@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-publish:
+  build:
     runs-on: windows-latest
 
     steps:
@@ -65,30 +65,35 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Download workflow artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ReverseSolitaire-latest
+          path: dist
+
       - name: Replace Latest release
-        if: github.ref == 'refs/heads/main'
-        permissions:
-          contents: write
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TARGET_SHA: ${{ github.sha }}
         run: |
-          gh release delete latest --yes --cleanup-tag 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "No previous latest release to delete."
-          }
-
-          gh release create latest "dist/ReverseSolitaire.exe" "dist/ReverseSolitaire.exe.sha256" `
-            --target "$env:TARGET_SHA" `
-            --title "Latest Reverse Solitaire" `
-            --notes "Automatically built from main at commit $env:TARGET_SHA. Verify the downloaded EXE using the accompanying SHA-256 file." `
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest dist/ReverseSolitaire.exe dist/ReverseSolitaire.exe.sha256 \
+            --target "$TARGET_SHA" \
+            --title "Latest Reverse Solitaire" \
+            --notes "Automatically built from main at commit $TARGET_SHA. Verify the downloaded EXE using the accompanying SHA-256 file." \
             --latest
 
       - name: Show stable download URL
-        if: github.ref == 'refs/heads/main'
-        shell: pwsh
         run: |
-          Write-Host "Release page: https://github.com/${{ github.repository }}/releases/latest"
-          Write-Host "Direct download: https://github.com/${{ github.repository }}/releases/download/latest/ReverseSolitaire.exe"
+          echo "Release page: https://github.com/${{ github.repository }}/releases/latest"
+          echo "Direct download: https://github.com/${{ github.repository }}/releases/download/latest/ReverseSolitaire.exe"
